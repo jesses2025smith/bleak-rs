@@ -7,10 +7,12 @@ use btleplug::{
     Result,
 };
 use btleplug::api::Service;
+use derive_getters::Getters;
 use uuid::Uuid;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Getters, Clone)]
 pub struct Device {
+    #[getter(skip)]
     pub(self) _adapter:    Adapter,
     pub(crate) peripheral: Peripheral,
 }

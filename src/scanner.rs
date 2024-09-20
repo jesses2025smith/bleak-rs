@@ -103,11 +103,13 @@ impl ScanConfig {
     }
 }
 
+#[derive(Debug, Clone)]
 pub(crate) struct Session {
     pub(crate) _manager: Manager,
     pub(crate) adapter:  Adapter,
 }
 
+#[derive(Debug, Clone)]
 pub struct Scanner {
     session:      Weak<Session>,
     event_sender: Sender<DeviceEvent>,
