@@ -44,7 +44,7 @@ pub use btleplug::{api::BDAddr, Error, Result};
 
 pub use characteristic::Characteristic;
 pub use device::{Device, DeviceEvent};
-pub use scanner::{ScanConfig, Scanner};
+pub use scanner::{Filter, ScanConfig, Scanner};
 
 mod device;
 mod scanner;

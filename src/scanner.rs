@@ -16,20 +16,35 @@ use tokio::sync::broadcast;
 use tokio::sync::broadcast::Sender;
 use tokio_stream::wrappers::BroadcastStream;
 
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub enum Filter {
+    Address(BDAddr),
+    Characteristic(Uuid),
+    Name(String),
+    Rssi(i16),
+    Service(Uuid),
+}
+
 #[derive(Default)]
 pub struct ScanConfig {
     /// Index of the Bluetooth adapter to use. The first found adapter is used by default.
-    adapter_index:          usize,
+    adapter_index: usize,
+    /// Filters objects
+    filters: Vec<Filter>,
     /// Filters the found devices based on device address.
-    address_filter:         Option<Box<dyn Fn(BDAddr) -> bool + Send + Sync>>,
+    address_filter: Option<Box<dyn Fn(BDAddr) -> bool + Send + Sync>>,
     /// Filters the found devices based on local name.
-    name_filter:            Option<Box<dyn Fn(&str) -> bool + Send + Sync>>,
+    name_filter: Option<Box<dyn Fn(&str) -> bool + Send + Sync>>,
+    /// Filters the found devices based on rssi.
+    rssi_filter: Option<Box<dyn Fn(i16) -> bool + Send + Sync>>,
+    /// Filters the found devices based on service's uuid.
+    service_filter: Option<Box<dyn Fn(&Uuid) -> bool + Send + Sync>>,
     /// Filters the found devices based on characteristics. Requires a connection to the device.
     characteristics_filter: Option<Box<dyn Fn(&[Uuid]) -> bool + Send + Sync>>,
     /// Maximum results before the scan is stopped.
-    max_results:            Option<usize>,
+    max_results: Option<usize>,
     /// The scan is stopped when timeout duration is reached.
-    timeout:                Option<Duration>,
+    timeout: Option<Duration>,
     /// Force disconnect when listen the device is connected.
     force_disconnect: bool,
 }
@@ -39,6 +54,12 @@ impl ScanConfig {
     #[inline]
     pub fn adapter_index(mut self, index: usize) -> Self {
         self.adapter_index = index;
+        self
+    }
+
+    #[inline]
+    pub fn extend_filters(mut self, filters: Vec<Filter>) -> Self {
+        self.filters.extend(filters);
         self
     }
 
@@ -53,6 +74,18 @@ impl ScanConfig {
     #[inline]
     pub fn filter_by_name(mut self, func: impl Fn(&str) -> bool + Send + Sync + 'static) -> Self {
         self.name_filter = Some(Box::new(func));
+        self
+    }
+
+    #[inline]
+    pub fn filter_by_rssi(mut self, func: impl Fn(i16) -> bool + Send + Sync + 'static) -> Self {
+        self.rssi_filter = Some(Box::new(func));
+        self
+    }
+
+    #[inline]
+    pub fn filter_by_service(mut self, func: impl Fn(&Uuid) -> bool + Send + Sync + 'static) -> Self {
+        self.service_filter = Some(Box::new(func));
         self
     }
 
@@ -248,8 +281,6 @@ pub struct ScannerWorker {
     session:           Arc<Session>,
     /// Number of matching devices found so far
     result_count:      usize,
-    /// Whether a connection is needed in order to pass the filter
-    connection_needed: bool,
     /// Set of devices that have been filtered and will be ignored
     filtered:          HashSet<PeripheralId>,
     /// Set of devices that we are currently connecting to
@@ -268,14 +299,12 @@ impl ScannerWorker {
         config:       ScanConfig,
         session:      Arc<Session>,
         event_sender: Sender<DeviceEvent>,
-        stopper:      Arc<AtomicBool>) -> Self {
-        let connection_needed = config.characteristics_filter.is_some();
-
+        stopper:      Arc<AtomicBool>
+    ) -> Self {
         Self {
             config,
             session,
             result_count: 0,
-            connection_needed,
             filtered: HashSet::new(),
             connecting: Arc::new(Mutex::new(HashSet::new())),
             matched: HashSet::new(),
@@ -294,18 +323,10 @@ impl ScannerWorker {
 
                     while let Some(event) = stream.next().await {
                         match event {
-                            CentralEvent::DeviceDiscovered(peripheral_id) => {
-                                self.on_device_discovered(peripheral_id).await;
-                            },
-                            CentralEvent::DeviceUpdated(peripheral_id) => {
-                                self.on_device_updated(peripheral_id).await;
-                            },
-                            CentralEvent::DeviceConnected(peripheral_id) => {
-                                self.on_device_connected(peripheral_id).await;
-                            },
-                            CentralEvent::DeviceDisconnected(peripheral_id) => {
-                                self.on_device_disconnected(peripheral_id).await;
-                            },
+                            CentralEvent::DeviceDiscovered(v) => self.on_device_discovered(v).await,
+                            CentralEvent::DeviceUpdated(v) => self.on_device_updated(v).await,
+                            CentralEvent::DeviceConnected(v) => self.on_device_connected(v).await,
+                            CentralEvent::DeviceDisconnected(v) => self.on_device_disconnected(v).await,
                             _ => {},
                         }
 
@@ -336,7 +357,7 @@ impl ScannerWorker {
         if let Ok(peripheral) = self.session.adapter.peripheral(&peripheral_id).await {
             log::trace!("Device discovered: {:?}", peripheral);
 
-            self.apply_filter(peripheral).await;
+            self.apply_filter(peripheral_id).await;
         }
     }
 
@@ -354,7 +375,7 @@ impl ScannerWorker {
                     Err(e) => log::debug!("Error: {:?} when Sending device: {}...", e, address),
                 }
             } else {
-                self.apply_filter(peripheral).await;
+                self.apply_filter(peripheral_id).await;
             }
         }
     }
@@ -375,7 +396,7 @@ impl ScannerWorker {
                     Err(e) => log::debug!("Error: {:?} when Sending device: {}...", e, address),
                 }
             } else {
-                self.apply_filter(peripheral).await;
+                self.apply_filter(peripheral_id).await;
             }
         }
     }
@@ -399,172 +420,286 @@ impl ScannerWorker {
         self.connecting.lock().unwrap().remove(&peripheral_id);
     }
 
-    async fn apply_filter(&mut self, peripheral: Peripheral) {
-        if self.filtered.contains(&peripheral.id()) {
-            // The device has already been filtered.
+    async fn apply_filter(&mut self, peripheral_id: PeripheralId) {
+        if self.filtered.contains(&peripheral_id) {
             return;
         }
 
-        match self.passes_pre_connect_filters(&peripheral).await {
-            Some(false) => {
-                self.skip_peripheral(&peripheral).await;
-                return;
-            }
-            None => {
-                // Could not yet check all of the filters
-                return;
-            }
-            _ => {
-                // All passed. Keep going.
-            }
-        };
+        if let Ok(peripheral) = self.session.adapter.peripheral(&peripheral_id).await {
+            if let Ok(Some(property)) = peripheral.properties().await {
+                let mut passed = true;
+                log::trace!("filtering: {:?}", property);
 
-        if self.connection_needed {
-            if !peripheral.is_connected().await.unwrap_or(false) {
-                if self.connecting.lock().unwrap().insert(peripheral.id()) {
-                    log::debug!("Connecting to device {}", peripheral.address());
-
-                    // Connect in another thread, so we can keep filtering other devices meanwhile.
-                    let peripheral_clone = peripheral.clone();
-                    let connecting_map = self.connecting.clone();
-                    tokio::spawn(async move {
-                        if let Err(e) = peripheral_clone.connect().await {
-                            log::warn!(
-                                "Could not connect to {}: {:?}",
-                                peripheral_clone.address(),
-                                e
-                            );
-
-                            connecting_map
-                                .lock()
-                                .unwrap()
-                                .remove(&peripheral_clone.id());
-                        };
-                    });
+                for filter in self.config.filters.iter() {
+                    match filter {
+                        Filter::Name(v) => {
+                            if let Some(name_filter) = &self.config.name_filter {
+                                passed &= name_filter(v);
+                            }
+                            else {
+                                passed &= property
+                                    .local_name
+                                    .clone()
+                                    .is_some_and(|name| &name == v);
+                            }
+                        }
+                        Filter::Rssi(v) => {
+                            if let Some(rssi_filter) = &self.config.rssi_filter {
+                                passed &= rssi_filter(*v);
+                            }
+                            else {
+                                passed &= property.rssi
+                                    .is_some_and(|rssi| rssi >= *v);
+                            }
+                        }
+                        Filter::Service(v) => {
+                            if let Some(service_filter) = &self.config.service_filter {
+                                passed &= service_filter(v);
+                            }
+                            else {
+                                passed &= property.services.contains(v);
+                            }
+                        }
+                        Filter::Address(v) => {
+                            if let Some(address_filter) = &self.config.address_filter {
+                                passed &= address_filter(*v);
+                            }
+                            else {
+                                passed &= property.address == *v;
+                            }
+                        }
+                        Filter::Characteristic(v) => {
+                            self.apply_character_filter(&peripheral, v, &mut passed).await;
+                        }
+                    }
                 }
-                return;
-            } else if let Some(false) = self.passes_post_connect_filters(&peripheral).await {
-                self.skip_peripheral(&peripheral).await;
-                return;
-            }
-        } else if self.config.force_disconnect {
-            peripheral.disconnect().await.ok();
-        }
 
-        self.add_peripheral(peripheral).await;
+                if passed {
+                    self.matched.insert(peripheral_id.clone());
+
+                    if passed {
+                        self.matched.insert(peripheral_id.clone());
+                        if let Err(e) = self.event_sender.send(
+                            DeviceEvent::Discovered(
+                                Device::new(self.session.adapter.clone(), peripheral))
+                        ) {
+                            log::warn!("error: {} when sending device", e);
+                        }
+                    }
+                }
+
+                log::debug!(
+                    "current matched: {}, current filtered: {}",
+                    self.matched.len(),
+                    self.filtered.len()
+                );
+            }
+
+            self.filtered.insert(peripheral_id);
+        }
     }
 
-    async fn skip_peripheral(&mut self, peripheral: &Peripheral) {
-        self.filtered.insert(peripheral.id());
+    /// TODO validate
+    async fn apply_character_filter(&self, peripheral: &Peripheral, uuid: &Uuid, passed: &mut bool) {
+        if !peripheral.is_connected().await.unwrap_or(false) {
+            if self.connecting.lock().unwrap().insert(peripheral.id()) {
+                log::debug!("Connecting to device {}", peripheral.address());
+
+                // Connect in another thread, so we can keep filtering other devices meanwhile.
+                // let peripheral_clone = peripheral.clone();
+                let connecting_map = self.connecting.clone();
+                if let Err(e) = peripheral.connect().await {
+                    log::warn!(
+                            "Could not connect to {}: {:?}",
+                            peripheral.address(),
+                            e
+                        );
+
+                    connecting_map
+                        .lock()
+                        .unwrap()
+                        .remove(&peripheral.id());
+
+                    return;
+                };
+            }
+        }
+
+        let mut characteristics = Vec::new();
+        characteristics.extend(peripheral.characteristics());
 
         if self.config.force_disconnect {
-            peripheral.disconnect().await.ok();
-            return;
-        }
-
-        if let Ok(connected) = peripheral.is_connected().await {
-            if !connected {
-                return;
+            if let Err(e) = peripheral.disconnect().await {
+                log::warn!("Error: {} when disconnect device", e);
             }
         }
 
-        if let Some(filter_by_address) = self.config.address_filter.as_ref() {
-            if let Ok(Some(property)) = peripheral.properties().await {
-                if filter_by_address(property.address) {
-                    peripheral.disconnect().await.ok();
-                }
-            };
-        }
+        *passed &= if characteristics.is_empty() {
+            let address = peripheral.address();
+            log::debug!("Discovering characteristics for {}", address);
 
-        if let Some(filter_by_name) = self.config.name_filter.as_ref() {
-            if let Ok(Some(property)) = peripheral.properties().await {
-                if let Some(local_name) = property.local_name {
-                    if filter_by_name(local_name.as_str()) {
-                        peripheral.disconnect().await.ok();
+            match peripheral.discover_services().await {
+                Ok(()) => {
+                    characteristics.extend(peripheral.characteristics());
+                    let characteristics = characteristics
+                        .into_iter()
+                        .map(|c| c.uuid)
+                        .collect::<Vec<_>>();
+
+                    if let Some(characteristics_filter) = &self.config.characteristics_filter {
+                        characteristics_filter(characteristics.as_slice())
+                    }
+                    else {
+                        characteristics.contains(uuid)
                     }
                 }
+                Err(e) => {
+                    log::warn!(
+                        "Error: `{:?}` when discovering characteristics for {}",
+                        e,
+                        address
+                    );
+                    false
+                }
             }
+        } else {
+            true
+        };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::future::Future;
+    use std::time::Duration;
+    use std::vec;
+    use btleplug::api::BDAddr;
+    use btleplug::Error;
+    use futures::StreamExt;
+    use uuid::Uuid;
+    use crate::Device;
+    use super::{Filter, Scanner, ScanConfig};
+
+    async fn device_stream<T: Future<Output = ()>>(scanner: Scanner, callback: impl Fn(Device) -> T) {
+        let duration = Duration::from_millis(15_000);
+        if let Err(_) = tokio::time::timeout(duration, async move {
+            while let Some(device) = scanner.device_stream().next().await {
+                callback(device).await;
+                scanner.stop()
+                    .await
+                    .unwrap();
+                break;
+            }
+        }).await {
+            eprintln!("timeout....");
         }
     }
 
-    async fn add_peripheral(&mut self, peripheral: Peripheral) {
-        self.filtered.insert(peripheral.id());
-        self.matched.insert(peripheral.id());
+    #[tokio::test]
+    async fn test_filter_by_address() -> Result<(), Error> {
+        pretty_env_logger::init();
 
-        let address = peripheral.address();
-        log::info!("Found device: {:?}", address);
+        let mac_addr = [0xE3, 0x9E, 0x2A, 0x4D, 0xAA, 0x97];
+        let filers = vec![
+            Filter::Address(BDAddr::from(mac_addr.clone())),
+        ];
+        let cfg = ScanConfig::default()
+            .extend_filters(filers)
+            .stop_after_first_match();
+        let mut scanner = Scanner::default();
 
-        match self.event_sender.send(DeviceEvent::Discovered(Device::new(
-            self.session.adapter.clone(),
-            peripheral,
-        ))) {
-            Ok(value) => {
-                log::debug!("Sent device: {}, size: {}...", address, value);
-                self.result_count += value;
-            }
-            Err(e) => log::error!("Error: `{:?}` when adding peripheral: {}", e, address),
-        }
+        scanner.start(cfg).await?;
+        device_stream(scanner, |device| async move {
+            assert_eq!(device.address(), BDAddr::from(mac_addr));
+        })
+            .await;
+
+        Ok(())
     }
 
-    /// Checks if the peripheral passes all of the filters that
-    /// do not require a connection to the device.
-    async fn passes_pre_connect_filters(&self, peripheral: &Peripheral) -> Option<bool> {
-        let mut passed = true;
+    #[tokio::test]
+    async fn test_filter_by_character() -> Result<(), Error> {
+        pretty_env_logger::init();
 
-        if let Some(filter_by_addr) = self.config.address_filter.as_ref() {
-            passed &= filter_by_addr(peripheral.address());
-        }
+        let filers = vec![
+            Filter::Characteristic(Uuid::from_u128(0x6e400001_b5a3_f393_e0a9_e50e24dcca9e)),
+        ];
+        let cfg = ScanConfig::default()
+            .extend_filters(filers)
+            .stop_after_first_match();
+        let mut scanner = Scanner::default();
 
-        if let Some(filter_by_name) = self.config.name_filter.as_ref() {
-            passed &= match peripheral.properties().await {
-                Ok(Some(props)) => props.local_name.map(|name| filter_by_name(&name)),
-                _ => None,
-            }?;
-        }
+        scanner.start(cfg).await?;
+        device_stream(scanner, |device| async move {
+            println!("device: {:?} found", device);
+        })
+            .await;
 
-        Some(passed)
+        Ok(())
     }
 
-    /// Checks if the peripheral passes all of the filters that
-    /// require a connection to the device.
-    async fn passes_post_connect_filters(&self, peripheral: &Peripheral) -> Option<bool> {
-        let mut passed = true;
+    #[tokio::test]
+    async fn test_filter_by_name() -> Result<(), Error> {
+        pretty_env_logger::init();
 
-        if !peripheral.is_connected().await.unwrap_or(false) {
-            return None;
-        }
+        let name = "73429485";
+        let filers = vec![
+            Filter::Name(name.into()),
+        ];
+        let cfg = ScanConfig::default()
+            .extend_filters(filers)
+            .stop_after_first_match();
+        let mut scanner = Scanner::default();
 
-        if let Some(filter_by_characteristics) = self.config.characteristics_filter.as_ref() {
-            let mut characteristics = Vec::new();
-            characteristics.extend(peripheral.characteristics());
+        scanner.start(cfg).await?;
+        device_stream(scanner, |device| async move {
+            assert_eq!(device.local_name().await, Some(name.into()));
+        })
+            .await;
 
-            passed &= if characteristics.is_empty() {
-                let address = peripheral.address();
-                log::debug!("Discovering characteristics for {}", address);
+        Ok(())
+    }
 
-                match peripheral.discover_services().await {
-                    Ok(()) => {
-                        characteristics.extend(peripheral.characteristics());
-                        let characteristics = characteristics
-                            .into_iter()
-                            .map(|c| c.uuid)
-                            .collect::<Vec<_>>();
-                        filter_by_characteristics(characteristics.as_slice())
-                    }
-                    Err(e) => {
-                        log::warn!(
-                            "Error: `{:?}` when discovering characteristics for {}",
-                            e,
-                            address
-                        );
-                        false
-                    }
-                }
-            } else {
-                true
-            }
-        }
+    #[tokio::test]
+    async fn test_filter_by_rssi() -> Result<(), Error> {
+        pretty_env_logger::init();
 
-        Some(passed)
+        let filers = vec![
+            Filter::Rssi(-70),
+        ];
+        let cfg = ScanConfig::default()
+            .extend_filters(filers)
+            .stop_after_first_match();
+        let mut scanner = Scanner::default();
+
+        scanner.start(cfg).await?;
+        device_stream(scanner, |device| async move {
+            println!("device: {:?} found", device);
+        })
+            .await;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_filter_by_service() -> Result<(), Error> {
+        pretty_env_logger::init();
+
+        let service = Uuid::from_u128(0x6e400001_b5a3_f393_e0a9_e50e24dcca9e);
+        let filers = vec![
+            Filter::Service(service),
+        ];
+        let cfg = ScanConfig::default()
+            .extend_filters(filers)
+            .stop_after_first_match();
+        let mut scanner = Scanner::default();
+
+        scanner.start(cfg).await?;
+        device_stream(scanner, |device| async move {
+            println!("device: {:?} found", device);
+        })
+            .await;
+
+        Ok(())
     }
 }
