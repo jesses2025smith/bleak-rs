@@ -476,15 +476,13 @@ impl ScannerWorker {
 
                 if passed {
                     self.matched.insert(peripheral_id.clone());
+                    self.result_count += 1;
 
-                    if passed {
-                        self.matched.insert(peripheral_id.clone());
-                        if let Err(e) = self.event_sender.send(
-                            DeviceEvent::Discovered(
-                                Device::new(self.session.adapter.clone(), peripheral))
-                        ) {
-                            log::warn!("error: {} when sending device", e);
-                        }
+                    if let Err(e) = self.event_sender.send(
+                        DeviceEvent::Discovered(
+                            Device::new(self.session.adapter.clone(), peripheral))
+                    ) {
+                        log::warn!("error: {} when sending device", e);
                     }
                 }
 
