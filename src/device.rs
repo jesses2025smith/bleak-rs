@@ -1,18 +1,17 @@
-use crate::Characteristic;
+use std::collections::BTreeSet;
 use btleplug::{
     api::{
-        BDAddr, Peripheral as _,
+        BDAddr, Peripheral as _, Characteristic as BleCharacteristic
     },
     platform::{Adapter, Peripheral},
     Result,
 };
 use btleplug::api::Service;
-use derive_getters::Getters;
 use uuid::Uuid;
+use crate::Characteristic;
 
-#[derive(Debug, Getters, Clone)]
+#[derive(Debug, Clone)]
 pub struct Device {
-    #[getter(skip)]
     pub(self) _adapter:    Adapter,
     pub(crate) peripheral: Peripheral,
 }
@@ -52,17 +51,33 @@ impl Device {
             .and_then(|props| props.local_name)
     }
 
+    /// Connect the device
+    #[inline]
+    pub async fn connect(&self) -> Result<()> {
+        if !self.is_connected().await? {
+            log::info!("Connecting device.");
+            self.peripheral.connect().await?;
+        }
+
+        Ok(())
+    }
+
     /// Disconnect from the device
     #[inline]
     pub async fn disconnect(&self) -> Result<()> {
+        log::info!("Disconnecting device.");
         self.peripheral.disconnect().await
+    }
+
+    /// Get the connected state
+    #[inline]
+    pub async fn is_connected(&self) -> Result<bool> {
+        self.peripheral.is_connected().await
     }
 
     /// Services advertised by the device
     pub async fn services(&self) -> Result<Vec<Service>> {
-        if !self.peripheral.is_connected().await? {
-            self.peripheral.connect().await?;
-        }
+        self.connect().await?;
 
         let mut services = self.peripheral.services();
         if services.is_empty() {
@@ -77,31 +92,12 @@ impl Device {
 
     /// Number of services advertised by the device
     pub async fn service_count(&self) -> Result<usize> {
-        if !self.peripheral.is_connected().await? {
-            self.peripheral.connect().await?;
-        }
-
-        let mut services = self.peripheral.services();
-        if services.is_empty() {
-            self.peripheral.discover_services().await?;
-            services = self.peripheral.services();
-        }
-
-        Ok(services.len())
+        Ok(self.services().await?.len())
     }
 
     /// Characteristics advertised by the device
     pub async fn characteristics(&self) -> Result<Vec<Characteristic>> {
-        if !self.peripheral.is_connected().await? {
-            self.peripheral.connect().await?;
-        }
-
-        let mut characteristics = self.peripheral.characteristics();
-        if characteristics.is_empty() {
-            self.peripheral.discover_services().await?;
-            characteristics = self.peripheral.characteristics();
-        }
-
+        let characteristics = self.original_characteristics().await?;
         Ok(characteristics
             .into_iter()
             .map(|characteristic| Characteristic {
@@ -113,15 +109,8 @@ impl Device {
 
     /// Get characteristic by UUID
     pub async fn characteristic(&self, uuid: Uuid) -> Result<Option<Characteristic>> {
-        if !self.peripheral.is_connected().await? {
-            self.peripheral.connect().await?;
-        }
+        let characteristics = self.original_characteristics().await?;
 
-        let mut characteristics = self.peripheral.characteristics();
-        if characteristics.is_empty() {
-            self.peripheral.discover_services().await?;
-            characteristics = self.peripheral.characteristics();
-        }
         let characteristic = characteristics
             .into_iter()
             .find(|characteristic| characteristic.uuid == uuid);
@@ -130,6 +119,19 @@ impl Device {
             peripheral: self.peripheral.clone(),
             characteristic,
         }))
+    }
+
+    #[inline]
+    async fn original_characteristics(&self) -> Result<BTreeSet<BleCharacteristic>> {
+        // self.connect().await?;
+
+        let mut characteristics = self.peripheral.characteristics();
+        if characteristics.is_empty() {
+            self.peripheral.discover_services().await?;
+            characteristics = self.peripheral.characteristics();
+        }
+
+        Ok(characteristics)
     }
 }
 

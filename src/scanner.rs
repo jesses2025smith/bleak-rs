@@ -583,9 +583,6 @@ mod tests {
         if let Err(_) = tokio::time::timeout(duration, async move {
             while let Some(device) = scanner.device_stream().next().await {
                 callback(device).await;
-                scanner.stop()
-                    .await
-                    .unwrap();
                 break;
             }
         }).await {
