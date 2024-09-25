@@ -2,7 +2,7 @@
 //! connects to it and starts listening for heart rate values.
 
 use bleasy::common::characteristics::HEART_RATE_MEASUREMENT;
-use bleasy::{Error, ScanConfig, Scanner};
+use bleasy::{Error, Filter, ScanConfig, Scanner};
 use futures::StreamExt;
 
 #[tokio::main]
@@ -10,6 +10,9 @@ async fn main() -> Result<(), Error> {
     pretty_env_logger::init();
 
     let config = ScanConfig::default()
+        .extend_filters(vec![
+            Filter::Characteristic(HEART_RATE_MEASUREMENT)
+        ])
         .filter_by_characteristics(|chars| chars.contains(&HEART_RATE_MEASUREMENT))
         .stop_after_first_match();
 
@@ -21,7 +24,7 @@ async fn main() -> Result<(), Error> {
 
     scanner.stop().await?;
 
-    for service in device.services().await.unwrap() {
+    for service in device.services().await? {
         println!("Service: {:?}", service);
     }
 

@@ -2,7 +2,7 @@
 //! and reads the device's battery level.
 
 use bleasy::common::characteristics::BATTERY_LEVEL;
-use bleasy::{Error, ScanConfig, Scanner};
+use bleasy::{Error, Filter, ScanConfig, Scanner};
 use futures::StreamExt;
 
 #[tokio::main]
@@ -11,6 +11,9 @@ async fn main() -> Result<(), Error> {
 
     // Filters devices that have battery level characteristic
     let config = ScanConfig::default()
+        .extend_filters(vec![
+            Filter::Characteristic(BATTERY_LEVEL)
+        ])
         .filter_by_characteristics(|uuids| uuids.contains(&BATTERY_LEVEL))
         .stop_after_first_match();
 

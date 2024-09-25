@@ -1,7 +1,7 @@
 //! This example powers on a SteamVR base station.
 //! The device name should be given as a command line argument.
 
-use bleasy::{Error, ScanConfig, Scanner};
+use bleasy::{Error, Filter, ScanConfig, Scanner};
 use futures::StreamExt;
 use std::str::FromStr;
 use uuid::Uuid;
@@ -16,6 +16,9 @@ async fn main() -> Result<(), Error> {
     pretty_env_logger::init();
 
     let config = ScanConfig::default()
+        .extend_filters(vec![
+            Filter::Name(name.clone()),
+        ])
         .filter_by_name(move |n| n.eq(&name))
         .stop_after_first_match();
 
@@ -26,12 +29,12 @@ async fn main() -> Result<(), Error> {
 
     let device = device_stream.next().await.unwrap();
 
-    let uuid = Uuid::from_str(POWER_UUID).unwrap();
+    let uuid = Uuid::from_str(POWER_UUID)?;
     let power = device.characteristic(uuid).await?.unwrap();
 
-    println!("Power: {:?}", power.read().await.unwrap());
+    println!("Power: {:?}", power.read().await?);
 
-    power.write_command(&[1]).await.unwrap();
+    power.write_command(&[1]).await?;
 
     Ok(())
 }
