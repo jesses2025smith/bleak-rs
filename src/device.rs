@@ -123,7 +123,7 @@ impl Device {
 
     #[inline]
     async fn original_characteristics(&self) -> Result<BTreeSet<BleCharacteristic>> {
-        // self.connect().await?;
+        self.connect().await?;
 
         let mut characteristics = self.peripheral.characteristics();
         if characteristics.is_empty() {
