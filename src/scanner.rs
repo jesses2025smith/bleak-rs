@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex, RwLock, Weak};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use btleplug::api::{BDAddr, Central, CentralEvent, Manager as _, Peripheral as _};
+use btleplug::api::{Central, CentralEvent, Manager as _, Peripheral as _};
 use btleplug::platform::{Adapter, Manager, Peripheral, PeripheralId};
 use btleplug::Error;
 use futures::{Stream, StreamExt};
@@ -18,7 +18,7 @@ use tokio_stream::wrappers::BroadcastStream;
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum Filter {
-    Address(BDAddr),
+    Address(String),
     Characteristic(Uuid),
     Name(String),
     Rssi(i16),
@@ -32,7 +32,7 @@ pub struct ScanConfig {
     /// Filters objects
     filters: Vec<Filter>,
     /// Filters the found devices based on device address.
-    address_filter: Option<Box<dyn Fn(BDAddr) -> bool + Send + Sync>>,
+    address_filter: Option<Box<dyn Fn(&String) -> bool + Send + Sync>>,
     /// Filters the found devices based on local name.
     name_filter: Option<Box<dyn Fn(&str) -> bool + Send + Sync>>,
     /// Filters the found devices based on rssi.
@@ -65,7 +65,10 @@ impl ScanConfig {
 
     /// Filter scanned devices based on the device address
     #[inline]
-    pub fn filter_by_address(mut self, func: impl Fn(BDAddr) -> bool + Send + Sync + 'static) -> Self {
+    pub fn filter_by_address(
+        mut self,
+        func: impl Fn(&String) -> bool + Send + Sync + 'static
+    ) -> Self {
         self.address_filter = Some(Box::new(func));
         self
     }
@@ -462,10 +465,10 @@ impl ScannerWorker {
                         }
                         Filter::Address(v) => {
                             if let Some(address_filter) = &self.config.address_filter {
-                                passed &= address_filter(*v);
+                                passed &= address_filter(v);
                             }
                             else {
-                                passed &= property.address == *v;
+                                passed &= property.address.to_string() == *v;
                             }
                         }
                         Filter::Characteristic(v) => {
@@ -596,7 +599,7 @@ mod tests {
 
         let mac_addr = [0xE3, 0x9E, 0x2A, 0x4D, 0xAA, 0x97];
         let filers = vec![
-            Filter::Address(BDAddr::from(mac_addr.clone())),
+            Filter::Address("E3:9E:2A:4D:AA:97".into()),
         ];
         let cfg = ScanConfig::default()
             .with_filters(&filers)

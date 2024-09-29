@@ -18,7 +18,7 @@ async fn main() -> Result<(), Error> {
 
     let config = ScanConfig::default()
         .with_filters(&vec![
-            Filter::Address(BDAddr::from_str(&address)?),
+            Filter::Address(address.clone()),
         ])
         .filter_by_address(move |addr| addr.to_string().eq(&address))
         .stop_after_first_match();
