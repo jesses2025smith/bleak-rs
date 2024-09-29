@@ -16,7 +16,7 @@ async fn main() -> Result<(), Error> {
     pretty_env_logger::init();
 
     let config = ScanConfig::default()
-        .extend_filters(vec![
+        .with_filters(&vec![
             Filter::Name(name.clone()),
         ])
         .filter_by_name(move |n| n.eq(&name))

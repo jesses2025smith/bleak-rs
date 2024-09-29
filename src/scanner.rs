@@ -58,8 +58,8 @@ impl ScanConfig {
     }
 
     #[inline]
-    pub fn extend_filters(mut self, filters: Vec<Filter>) -> Self {
-        self.filters.extend(filters);
+    pub fn with_filters(mut self, filters: &[Filter]) -> Self {
+        self.filters.extend_from_slice(filters);
         self
     }
 
@@ -392,8 +392,8 @@ impl ScannerWorker {
                     self.session.adapter.clone(),
                     peripheral,
                 ))) {
-                    Ok(value) => log::debug!("Sent device: {}, size: {}...", address, value),
-                    Err(e) => log::debug!("Error: {:?} when Sending device: {}...", e, address),
+                    Ok(value) => log::trace!("Sent device: {}, size: {}...", address, value),
+                    Err(e) => log::warn!("Error: {:?} when Sending device: {}...", e, address),
                 }
             } else {
                 self.apply_filter(peripheral_id).await;
@@ -411,8 +411,8 @@ impl ScannerWorker {
                     self.session.adapter.clone(),
                     peripheral,
                 ))) {
-                    Ok(value) => log::debug!("Sent device: {}, size: {}...", address, value),
-                    Err(e) => log::debug!("Error: {:?} when Sending device: {}...", e, address),
+                    Ok(value) => log::trace!("Sent device: {}, size: {}...", address, value),
+                    Err(e) => log::warn!("Error: {:?} when Sending device: {}...", e, address),
                 }
             }
         }
@@ -599,7 +599,7 @@ mod tests {
             Filter::Address(BDAddr::from(mac_addr.clone())),
         ];
         let cfg = ScanConfig::default()
-            .extend_filters(filers)
+            .with_filters(&filers)
             .stop_after_first_match();
         let mut scanner = Scanner::default();
 
@@ -620,7 +620,7 @@ mod tests {
             Filter::Characteristic(Uuid::from_u128(0x6e400001_b5a3_f393_e0a9_e50e24dcca9e)),
         ];
         let cfg = ScanConfig::default()
-            .extend_filters(filers)
+            .with_filters(&filers)
             .stop_after_first_match();
         let mut scanner = Scanner::default();
 
@@ -642,7 +642,7 @@ mod tests {
             Filter::Name(name.into()),
         ];
         let cfg = ScanConfig::default()
-            .extend_filters(filers)
+            .with_filters(&filers)
             .stop_after_first_match();
         let mut scanner = Scanner::default();
 
@@ -663,7 +663,7 @@ mod tests {
             Filter::Rssi(-70),
         ];
         let cfg = ScanConfig::default()
-            .extend_filters(filers)
+            .with_filters(&filers)
             .stop_after_first_match();
         let mut scanner = Scanner::default();
 
@@ -685,7 +685,7 @@ mod tests {
             Filter::Service(service),
         ];
         let cfg = ScanConfig::default()
-            .extend_filters(filers)
+            .with_filters(&filers)
             .stop_after_first_match();
         let mut scanner = Scanner::default();
 

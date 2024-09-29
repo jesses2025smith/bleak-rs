@@ -24,7 +24,7 @@ async fn main() -> Result<(), Error> {
 
     // Filter devices that have battery level characteristic
     let config = ScanConfig::default()
-        .extend_filters(vec![
+        .with_filters(&vec![
             Filter::Characteristic(BATTERY_LEVEL)
         ])
         // .filter_by_characteristics(|uuids| uuids.contains(&BATTERY_LEVEL))

@@ -17,7 +17,7 @@ async fn main() -> Result<(), Error> {
     log::info!("Scanning for device {}", address);
 
     let config = ScanConfig::default()
-        .extend_filters(vec![
+        .with_filters(&vec![
             Filter::Address(BDAddr::from_str(&address)?),
         ])
         .filter_by_address(move |addr| addr.to_string().eq(&address))

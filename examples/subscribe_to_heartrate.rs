@@ -10,7 +10,7 @@ async fn main() -> Result<(), Error> {
     pretty_env_logger::init();
 
     let config = ScanConfig::default()
-        .extend_filters(vec![
+        .with_filters(&vec![
             Filter::Characteristic(HEART_RATE_MEASUREMENT)
         ])
         .filter_by_characteristics(|chars| chars.contains(&HEART_RATE_MEASUREMENT))
