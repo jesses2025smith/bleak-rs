@@ -1,11 +1,11 @@
 //! This example listens for BLE device events.
 
-use bleasy::{DeviceEvent, Error, ScanConfig, Scanner};
+use bleasy::{DeviceEvent, ScanConfig, Scanner};
 use futures::StreamExt;
 use tokio::time::{sleep, Duration};
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() -> anyhow::Result<()> {
     pretty_env_logger::init();
 
     // Create a new BLE device scanner

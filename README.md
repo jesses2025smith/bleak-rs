@@ -1,8 +1,9 @@
-# bleasy
+# bleak-rs(Derived from [bleasy](https://crates.io/crates/bleasy))
 
-[![Latest version](https://img.shields.io/crates/v/bleasy.svg)](https://crates.io/crates/bleasy)
-[![Documentation](https://docs.rs/bleasy/badge.svg)](https://docs.rs/bleasy)
+[![Latest version](https://img.shields.io/crates/v/bleak-rs.svg)](https://crates.io/crates/bleak-rs)
+[![Documentation](https://docs.rs/bleak-rs/badge.svg)](https://docs.rs/bleak-rs)
 ![MIT](https://img.shields.io/badge/license-MIT-blue.svg)
+![Downloads](https://img.shields.io/crates/d/bleak-rs)
 
 High-level BLE communication library for Rust.
 

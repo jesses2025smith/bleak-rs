@@ -1,7 +1,7 @@
 //! This example powers on a SteamVR base station.
 //! The device name should be given as a command line argument.
 
-use bleasy::{Error, Filter, ScanConfig, Scanner};
+use bleasy::{Filter, ScanConfig, Scanner};
 use futures::StreamExt;
 use std::str::FromStr;
 use uuid::Uuid;
@@ -9,7 +9,7 @@ use uuid::Uuid;
 const POWER_UUID: &str = "00001525-1212-efde-1523-785feabcd124";
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() -> anyhow::Result<()> {
     // Give BLE device address as a command line argument.
 
     let name = std::env::args().nth(1).expect("Expected device name");

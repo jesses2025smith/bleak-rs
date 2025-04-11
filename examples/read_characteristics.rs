@@ -2,11 +2,11 @@
 //! and reads the device's battery level.
 
 use bleasy::common::characteristics::BATTERY_LEVEL;
-use bleasy::{Error, Filter, ScanConfig, Scanner};
+use bleasy::{Filter, ScanConfig, Scanner};
 use futures::StreamExt;
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() -> anyhow::Result<()> {
     pretty_env_logger::init();
 
     // Filters devices that have battery level characteristic

@@ -1,11 +1,11 @@
-use bleasy::{Error, ScanConfig, Scanner};
+use bleasy::{ScanConfig, Scanner};
 use futures::StreamExt;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() -> anyhow::Result<()> {
     pretty_env_logger::init();
 
     // Create a new BLE device scanner

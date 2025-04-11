@@ -1,13 +1,11 @@
 //! This example finds a BLE device with specified address.
 //! cargo run --example filter_by_address XX:XX:XX:XX:XX:XX
 
-use std::str::FromStr;
-use btleplug::api::BDAddr;
-use bleasy::{Error, Filter, ScanConfig, Scanner};
+use bleasy::{Filter, ScanConfig, Scanner};
 use futures::StreamExt;
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() -> anyhow::Result<()> {
     let address = std::env::args()
         .nth(1)
         .expect("Expected address in format XX:XX:XX:XX:XX:XX");

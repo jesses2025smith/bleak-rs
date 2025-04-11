@@ -1,27 +1,31 @@
 [package]
-name = "bleasy"
-version = "0.3.1"
+name = "bleak-rs"
+version = "0.1.0"
 edition = "2021"
-authors = ["Urho Laukkarinen <urho.laukkarinen@gmail.com>"]
+authors = ["Urho Laukkarinen <urho.laukkarinen@gmail.com>", "Jesse Smith <jesses2025smith@gmail.com>"]
 
 description = "High-level BLE communication library"
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/urholaukkarinen/bleasy"
-homepage = "https://github.com/urholaukkarinen/bleasy"
+repository = "https://github.com/jesses2025smith/bleak-rs"
+homepage = "https://github.com/jesses2025smith/bleak-rs"
 keywords = ["bluetooth", "ble"]
 categories = ["asynchronous", "hardware-support"]
 
+[lib]
+name = "bleasy"
+path = "src/lib.rs"
+
 [dependencies]
-tokio = { version = "1.35.1", features = ["rt"] }
-tokio-stream = "0.1.14"
-log = "0.4.14"
-futures = "0.3.21"
-uuid = "1.7.0"
-thiserror = "1.0.31"
-stream-cancel = "0.8.1"
-btleplug = "0.11.5"
+tokio = { version = "1.44", features = ["rt"] }
+tokio-stream = "0.1"
+log = "0.4"
+futures = "0.3"
+uuid = "1.11"
+stream-cancel = "0.8"
+btleplug = { git = "https://github.com/jesses2025smith/btleplug.git", branch = "dev", features = ["serde"] }
 
 [dev-dependencies]
-pretty_env_logger = "0.5.0"
-tokio = { version = "1.15.0", features = ["macros", "rt", "rt-multi-thread"] }
+pretty_env_logger = "0.5"
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread"] }
+anyhow = "1"

@@ -2,11 +2,11 @@
 //! connects to it and starts listening for heart rate values.
 
 use bleasy::common::characteristics::HEART_RATE_MEASUREMENT;
-use bleasy::{Error, Filter, ScanConfig, Scanner};
+use bleasy::{Filter, ScanConfig, Scanner};
 use futures::StreamExt;
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() -> anyhow::Result<()> {
     pretty_env_logger::init();
 
     let config = ScanConfig::default()
