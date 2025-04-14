@@ -32,15 +32,15 @@ pub struct ScanConfig {
     /// Filters objects
     filters: Vec<Filter>,
     /// Filters the found devices based on device address.
-    address_filter: Option<Box<dyn Fn(&String) -> bool + Send + Sync>>,
+    address_filter: Option<Box<dyn Fn(&str, &str) -> bool + Send + Sync>>,
     /// Filters the found devices based on local name.
-    name_filter: Option<Box<dyn Fn(&str) -> bool + Send + Sync>>,
+    name_filter: Option<Box<dyn Fn(&str, &str) -> bool + Send + Sync>>,
     /// Filters the found devices based on rssi.
-    rssi_filter: Option<Box<dyn Fn(i16) -> bool + Send + Sync>>,
+    rssi_filter: Option<Box<dyn Fn(i16, i16) -> bool + Send + Sync>>,
     /// Filters the found devices based on service's uuid.
-    service_filter: Option<Box<dyn Fn(&Uuid) -> bool + Send + Sync>>,
+    service_filter: Option<Box<dyn Fn(&Vec<Uuid>, &Uuid) -> bool + Send + Sync>>,
     /// Filters the found devices based on characteristics. Requires a connection to the device.
-    characteristics_filter: Option<Box<dyn Fn(&[Uuid]) -> bool + Send + Sync>>,
+    characteristics_filter: Option<Box<dyn Fn(&Vec<Uuid>, &Uuid) -> bool + Send + Sync>>,
     /// Maximum results before the scan is stopped.
     max_results: Option<usize>,
     /// The scan is stopped when timeout duration is reached.
@@ -67,7 +67,7 @@ impl ScanConfig {
     #[inline]
     pub fn filter_by_address(
         mut self,
-        func: impl Fn(&String) -> bool + Send + Sync + 'static
+        func: impl Fn(&str, &str) -> bool + Send + Sync + 'static
     ) -> Self {
         self.address_filter = Some(Box::new(func));
         self
@@ -75,19 +75,19 @@ impl ScanConfig {
 
     /// Filter scanned devices based on the device name
     #[inline]
-    pub fn filter_by_name(mut self, func: impl Fn(&str) -> bool + Send + Sync + 'static) -> Self {
+    pub fn filter_by_name(mut self, func: impl Fn(&str, &str) -> bool + Send + Sync + 'static) -> Self {
         self.name_filter = Some(Box::new(func));
         self
     }
 
     #[inline]
-    pub fn filter_by_rssi(mut self, func: impl Fn(i16) -> bool + Send + Sync + 'static) -> Self {
+    pub fn filter_by_rssi(mut self, func: impl Fn(i16, i16) -> bool + Send + Sync + 'static) -> Self {
         self.rssi_filter = Some(Box::new(func));
         self
     }
 
     #[inline]
-    pub fn filter_by_service(mut self, func: impl Fn(&Uuid) -> bool + Send + Sync + 'static) -> Self {
+    pub fn filter_by_service(mut self, func: impl Fn(&Vec<Uuid>, &Uuid) -> bool + Send + Sync + 'static) -> Self {
         self.service_filter = Some(Box::new(func));
         self
     }
@@ -96,7 +96,7 @@ impl ScanConfig {
     #[inline]
     pub fn filter_by_characteristics(
         mut self,
-        func: impl Fn(&[Uuid]) -> bool + Send + Sync + 'static,
+        func: impl Fn(&Vec<Uuid>, &Uuid) -> bool + Send + Sync + 'static,
     ) -> Self {
         self.characteristics_filter = Some(Box::new(func));
         self
@@ -132,7 +132,7 @@ impl ScanConfig {
     #[inline]
     pub fn require_name(self) -> Self {
         if self.name_filter.is_none() {
-            self.filter_by_name(|name| !name.is_empty())
+            self.filter_by_name(|src, _dst| !src.is_empty())
         } else {
             self
         }
@@ -263,10 +263,7 @@ impl Scanner {
                         log::warn!("Error: {:?} when broadcasting device!", e);
                         None
                     },
-                    _ => {
-                        log::warn!("Unknown error when broadcasting device!");
-                        None
-                    },
+                    _ => None,
                 }
             }));
 
@@ -436,39 +433,41 @@ impl ScannerWorker {
                 for filter in self.config.filters.iter() {
                     match filter {
                         Filter::Name(v) => {
-                            if let Some(name_filter) = &self.config.name_filter {
-                                passed &= name_filter(v);
-                            }
-                            else {
-                                passed &= property
-                                    .local_name
-                                    .clone()
-                                    .is_some_and(|name| &name == v);
-                            }
+                            passed &= property.local_name.as_ref().is_some_and(|name| {
+                                if let Some(name_filter) = &self.config.name_filter {
+                                    name_filter(name, v)
+                                }
+                                else {
+                                    name == v
+                                }
+                            })
                         }
                         Filter::Rssi(v) => {
-                            if let Some(rssi_filter) = &self.config.rssi_filter {
-                                passed &= rssi_filter(*v);
-                            }
-                            else {
-                                passed &= property.rssi
-                                    .is_some_and(|rssi| rssi >= *v);
-                            }
+                            passed &= property.rssi.is_some_and(|rssi| {
+                                if let Some(rssi_filter) = &self.config.rssi_filter {
+                                    rssi_filter(rssi, *v)
+                                }
+                                else {
+                                    rssi >= *v
+                                }
+                            });
                         }
                         Filter::Service(v) => {
+                            let services = &property.services;
                             if let Some(service_filter) = &self.config.service_filter {
-                                passed &= service_filter(v);
+                                passed &= service_filter(&services, v);
                             }
                             else {
                                 passed &= property.services.contains(v);
                             }
                         }
                         Filter::Address(v) => {
+                            let addr = property.address.to_string();
                             if let Some(address_filter) = &self.config.address_filter {
-                                passed &= address_filter(v);
+                                passed &= address_filter(&addr, v);
                             }
                             else {
-                                passed &= property.address.to_string() == *v;
+                                passed &= addr == *v;
                             }
                         }
                         Filter::Characteristic(v) => {
@@ -500,7 +499,6 @@ impl ScannerWorker {
         }
     }
 
-    /// TODO validate
     async fn apply_character_filter(&self, peripheral: &Peripheral, uuid: &Uuid, passed: &mut bool) {
         if !peripheral.is_connected().await.unwrap_or(false) {
             if self.connecting.lock().unwrap().insert(peripheral.id()) {
@@ -548,7 +546,7 @@ impl ScannerWorker {
                         .collect::<Vec<_>>();
 
                     if let Some(characteristics_filter) = &self.config.characteristics_filter {
-                        characteristics_filter(characteristics.as_slice())
+                        characteristics_filter(&characteristics, uuid)
                     }
                     else {
                         characteristics.contains(uuid)
