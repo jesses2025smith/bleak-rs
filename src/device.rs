@@ -1,18 +1,16 @@
-use std::collections::BTreeSet;
 use btleplug::{
-    api::{
-        BDAddr, Peripheral as _, Characteristic as BleCharacteristic
-    },
+    api::{BDAddr, Characteristic as BleCharacteristic, Peripheral as _, Service},
     platform::{Adapter, Peripheral},
     Result,
 };
-use btleplug::api::Service;
+use std::collections::BTreeSet;
 use uuid::Uuid;
+
 use crate::Characteristic;
 
 #[derive(Debug, Clone)]
 pub struct Device {
-    pub(self) _adapter:    Adapter,
+    pub(self) _adapter: Adapter,
     pub(crate) peripheral: Peripheral,
 }
 
@@ -77,7 +75,7 @@ impl Device {
 
     /// Services advertised by the device
     pub async fn services(&self) -> Result<Vec<Service>> {
-        self.connect().await?;
+        // self.connect().await?;
 
         let mut services = self.peripheral.services();
         if services.is_empty() {
@@ -85,9 +83,7 @@ impl Device {
             services = self.peripheral.services();
         }
 
-        Ok(services
-            .into_iter()
-            .collect::<Vec<_>>())
+        Ok(services.into_iter().collect::<Vec<_>>())
     }
 
     /// Number of services advertised by the device
@@ -111,19 +107,18 @@ impl Device {
     pub async fn characteristic(&self, uuid: Uuid) -> Result<Option<Characteristic>> {
         let characteristics = self.original_characteristics().await?;
 
-        let characteristic = characteristics
+        Ok(characteristics
             .into_iter()
-            .find(|characteristic| characteristic.uuid == uuid);
-
-        Ok(characteristic.map(|characteristic| Characteristic {
-            peripheral: self.peripheral.clone(),
-            characteristic,
-        }))
+            .find(|characteristic| characteristic.uuid == uuid)
+            .map(|characteristic| Characteristic {
+                peripheral: self.peripheral.clone(),
+                characteristic,
+            }))
     }
 
     #[inline]
     async fn original_characteristics(&self) -> Result<BTreeSet<BleCharacteristic>> {
-        self.connect().await?;
+        // self.connect().await?;
 
         let mut characteristics = self.peripheral.characteristics();
         if characteristics.is_empty() {

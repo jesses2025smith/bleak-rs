@@ -16,9 +16,7 @@ async fn main() -> anyhow::Result<()> {
     pretty_env_logger::init();
 
     let config = ScanConfig::default()
-        .with_filters(&vec![
-            Filter::Name(name.clone()),
-        ])
+        .with_filters(&vec![Filter::Name(name.clone())])
         .filter_by_name(move |n| n.eq(&name))
         .stop_after_first_match();
 

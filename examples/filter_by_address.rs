@@ -15,9 +15,7 @@ async fn main() -> anyhow::Result<()> {
     log::info!("Scanning for device {}", address);
 
     let config = ScanConfig::default()
-        .with_filters(&vec![
-            Filter::Address(address.clone()),
-        ])
+        .with_filters(&vec![Filter::Address(address.clone())])
         .filter_by_address(move |addr| addr.to_string().eq(&address))
         .stop_after_first_match();
 

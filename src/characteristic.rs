@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub struct Characteristic {
-    pub(crate) peripheral:     Peripheral,
+    pub(crate) peripheral: Peripheral,
     pub(crate) characteristic: BtleCharacteristic,
 }
 
