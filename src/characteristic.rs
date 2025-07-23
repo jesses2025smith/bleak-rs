@@ -1,8 +1,10 @@
-use btleplug::api::{Characteristic as BtleCharacteristic, Peripheral as _, WriteType};
-use btleplug::platform::Peripheral;
-use btleplug::Result;
-use futures::{Stream, StreamExt};
+use btleplug::{
+    api::{Characteristic as BtleCharacteristic, Peripheral as _, WriteType},
+    platform::Peripheral,
+    Result,
+};
 use std::pin::Pin;
+use tokio_stream::{Stream, StreamExt};
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -37,7 +39,7 @@ impl Characteristic {
         let stream = self.peripheral.notifications().await?;
         let uuid = self.characteristic.uuid;
 
-        Ok(Box::pin(stream.filter_map(move |n| async move {
+        Ok(Box::pin(stream.filter_map(move |n| {
             if n.uuid == uuid {
                 Some(n.value)
             } else {

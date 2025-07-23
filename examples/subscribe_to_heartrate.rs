@@ -1,9 +1,11 @@
 //! This example finds the first BLE device that has a heart rate measurement characteristic,
 //! connects to it and starts listening for heart rate values.
 
-use bleasy::common::characteristics::HEART_RATE_MEASUREMENT;
-use bleasy::{Filter, ScanConfig, Scanner};
-use futures::StreamExt;
+use bleasy::{
+    common::characteristics::HEART_RATE_MEASUREMENT,
+    {Filter, ScanConfig, Scanner},
+};
+use tokio_stream::StreamExt;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -17,7 +19,7 @@ async fn main() -> anyhow::Result<()> {
     let mut scanner = Scanner::new();
     scanner.start(config).await?;
 
-    let mut device_stream = scanner.device_stream();
+    let mut device_stream = scanner.device_stream()?;
     let device = device_stream.next().await.unwrap();
 
     scanner.stop().await?;

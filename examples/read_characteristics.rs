@@ -1,9 +1,11 @@
 //! This example finds the first device with battery level characteristic
 //! and reads the device's battery level.
 
-use bleasy::common::characteristics::BATTERY_LEVEL;
-use bleasy::{Filter, ScanConfig, Scanner};
-use futures::StreamExt;
+use bleasy::{
+    common::characteristics::BATTERY_LEVEL,
+    {Filter, ScanConfig, Scanner},
+};
+use tokio_stream::StreamExt;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -20,7 +22,7 @@ async fn main() -> anyhow::Result<()> {
     scanner.start(config).await?;
 
     // Take the first discovered device
-    let device = scanner.device_stream().next().await.unwrap();
+    let device = scanner.device_stream()?.next().await.unwrap();
 
     // Read the battery level
     let battery_level = device.characteristic(BATTERY_LEVEL).await?.unwrap();

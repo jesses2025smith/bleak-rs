@@ -2,7 +2,7 @@
 //! cargo run --example filter_by_address XX:XX:XX:XX:XX:XX
 
 use bleasy::{Filter, ScanConfig, Scanner};
-use futures::StreamExt;
+use tokio_stream::StreamExt;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -16,13 +16,13 @@ async fn main() -> anyhow::Result<()> {
 
     let config = ScanConfig::default()
         .with_filters(&vec![Filter::Address(address.clone())])
-        .filter_by_address(move |addr| addr.to_string().eq(&address))
+        .filter_by_address(move |addr| addr.eq(&address))
         .stop_after_first_match();
 
     let mut scanner = Scanner::new();
     scanner.start(config).await?;
 
-    let device = scanner.device_stream().next().await;
+    let device = scanner.device_stream()?.next().await;
 
     println!("{:?}", device.unwrap().local_name().await);
 

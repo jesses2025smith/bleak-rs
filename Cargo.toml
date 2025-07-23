@@ -1,6 +1,6 @@
 [package]
 name = "bleak-rs"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 authors = ["Urho Laukkarinen <urho.laukkarinen@gmail.com>", "Jesse Smith <jesses2025smith@gmail.com>"]
 
@@ -17,10 +17,9 @@ name = "bleasy"
 path = "src/lib.rs"
 
 [dependencies]
-tokio = { version = "1.44", features = ["rt"] }
+tokio = { version = "1.44", features = ["rt-multi-thread"] }
 tokio-stream = "0.1"
 log = "0.4"
-futures = "0.3"
 uuid = "1.16"
 stream-cancel = "0.8"
 btleplug = { version = "0.11", features = ["serde"] }

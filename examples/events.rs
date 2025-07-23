@@ -1,8 +1,8 @@
 //! This example listens for BLE device events.
 
 use bleasy::{DeviceEvent, ScanConfig, Scanner};
-use futures::StreamExt;
 use tokio::time::{sleep, Duration};
+use tokio_stream::StreamExt;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -15,7 +15,7 @@ async fn main() -> anyhow::Result<()> {
     scanner.start(ScanConfig::default()).await?;
 
     // Create a stream that is provided with device events
-    let mut event_stream = scanner.device_event_stream();
+    let mut event_stream = scanner.device_event_stream()?;
 
     // Read events in a separate thread
     let join_handle = tokio::spawn(async move {

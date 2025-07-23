@@ -3,7 +3,6 @@ use btleplug::{
     platform::{Adapter, Manager, Peripheral, PeripheralId},
     Error,
 };
-use futures::{Stream, StreamExt};
 use std::{
     collections::HashSet,
     pin::Pin,
@@ -15,7 +14,7 @@ use std::{
 };
 use stream_cancel::{Trigger, Valved};
 use tokio::sync::broadcast::{self, Sender};
-use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::{wrappers::BroadcastStream, Stream, StreamExt};
 use uuid::Uuid;
 
 use crate::{Device, DeviceEvent};
@@ -36,15 +35,15 @@ pub struct ScanConfig {
     /// Filters objects
     filters: Vec<Filter>,
     /// Filters the found devices based on device address.
-    address_filter: Option<Box<dyn Fn(&str, &str) -> bool + Send + Sync>>,
+    address_filter: Option<Box<dyn Fn(&str) -> bool + Send + Sync>>,
     /// Filters the found devices based on local name.
-    name_filter: Option<Box<dyn Fn(&str, &str) -> bool + Send + Sync>>,
+    name_filter: Option<Box<dyn Fn(&str) -> bool + Send + Sync>>,
     /// Filters the found devices based on rssi.
-    rssi_filter: Option<Box<dyn Fn(i16, i16) -> bool + Send + Sync>>,
+    rssi_filter: Option<Box<dyn Fn(i16) -> bool + Send + Sync>>,
     /// Filters the found devices based on service's uuid.
     service_filter: Option<Box<dyn Fn(&Vec<Uuid>, &Uuid) -> bool + Send + Sync>>,
     /// Filters the found devices based on characteristics. Requires a connection to the device.
-    characteristics_filter: Option<Box<dyn Fn(&Vec<Uuid>, &Uuid) -> bool + Send + Sync>>,
+    characteristics_filter: Option<Box<dyn Fn(&Vec<Uuid>) -> bool + Send + Sync>>,
     /// Maximum results before the scan is stopped.
     max_results: Option<usize>,
     /// The scan is stopped when timeout duration is reached.
@@ -71,7 +70,7 @@ impl ScanConfig {
     #[inline]
     pub fn filter_by_address(
         mut self,
-        func: impl Fn(&str, &str) -> bool + Send + Sync + 'static,
+        func: impl Fn(&str) -> bool + Send + Sync + 'static,
     ) -> Self {
         self.address_filter = Some(Box::new(func));
         self
@@ -79,19 +78,13 @@ impl ScanConfig {
 
     /// Filter scanned devices based on the device name
     #[inline]
-    pub fn filter_by_name(
-        mut self,
-        func: impl Fn(&str, &str) -> bool + Send + Sync + 'static,
-    ) -> Self {
+    pub fn filter_by_name(mut self, func: impl Fn(&str) -> bool + Send + Sync + 'static) -> Self {
         self.name_filter = Some(Box::new(func));
         self
     }
 
     #[inline]
-    pub fn filter_by_rssi(
-        mut self,
-        func: impl Fn(i16, i16) -> bool + Send + Sync + 'static,
-    ) -> Self {
+    pub fn filter_by_rssi(mut self, func: impl Fn(i16) -> bool + Send + Sync + 'static) -> Self {
         self.rssi_filter = Some(Box::new(func));
         self
     }
@@ -109,7 +102,7 @@ impl ScanConfig {
     #[inline]
     pub fn filter_by_characteristics(
         mut self,
-        func: impl Fn(&Vec<Uuid>, &Uuid) -> bool + Send + Sync + 'static,
+        func: impl Fn(&Vec<Uuid>) -> bool + Send + Sync + 'static,
     ) -> Self {
         self.characteristics_filter = Some(Box::new(func));
         self
@@ -145,7 +138,7 @@ impl ScanConfig {
     #[inline]
     pub fn require_name(self) -> Self {
         if self.name_filter.is_none() {
-            self.filter_by_name(|src, _dst| !src.is_empty())
+            self.filter_by_name(|src| !src.is_empty())
         } else {
             self
         }
@@ -242,16 +235,14 @@ impl Scanner {
         let receiver = self.event_sender.subscribe();
 
         let stream: Pin<Box<dyn Stream<Item = DeviceEvent> + Send>> =
-            Box::pin(BroadcastStream::new(receiver).filter_map(|x| async move {
-                match x {
-                    Ok(event) => {
-                        log::debug!("Broadcasting device: {:?}", event);
-                        Some(event)
-                    }
-                    Err(e) => {
-                        log::warn!("Error: {:?} when broadcasting device event!", e);
-                        None
-                    }
+            Box::pin(BroadcastStream::new(receiver).filter_map(|x| match x {
+                Ok(event) => {
+                    log::debug!("Broadcasting device: {:?}", event);
+                    Some(event)
+                }
+                Err(e) => {
+                    log::warn!("Error: {:?} when broadcasting device event!", e);
+                    None
                 }
             }));
 
@@ -268,18 +259,16 @@ impl Scanner {
         let receiver = self.event_sender.subscribe();
 
         let stream: Pin<Box<dyn Stream<Item = Device> + Send>> =
-            Box::pin(BroadcastStream::new(receiver).filter_map(|x| async move {
-                match x {
-                    Ok(DeviceEvent::Discovered(device)) => {
-                        log::debug!("Broadcasting device: {:?}", device.address());
-                        Some(device)
-                    }
-                    Err(e) => {
-                        log::warn!("Error: {:?} when broadcasting device!", e);
-                        None
-                    }
-                    _ => None,
+            Box::pin(BroadcastStream::new(receiver).filter_map(|x| match x {
+                Ok(DeviceEvent::Discovered(device)) => {
+                    log::debug!("Broadcasting device: {:?}", device.address());
+                    Some(device)
                 }
+                Err(e) => {
+                    log::warn!("Error: {:?} when broadcasting device!", e);
+                    None
+                }
+                _ => None,
             }));
 
         let (trigger, stream) = Valved::new(stream);
@@ -457,7 +446,7 @@ impl ScannerWorker {
                         Filter::Name(v) => {
                             passed &= property.local_name.as_ref().is_some_and(|name| {
                                 if let Some(name_filter) = &self.config.name_filter {
-                                    name_filter(name, v)
+                                    name_filter(name)
                                 } else {
                                     name == v
                                 }
@@ -466,7 +455,7 @@ impl ScannerWorker {
                         Filter::Rssi(v) => {
                             passed &= property.rssi.is_some_and(|rssi| {
                                 if let Some(rssi_filter) = &self.config.rssi_filter {
-                                    rssi_filter(rssi, *v)
+                                    rssi_filter(rssi)
                                 } else {
                                     rssi >= *v
                                 }
@@ -483,7 +472,7 @@ impl ScannerWorker {
                         Filter::Address(v) => {
                             let addr = property.address.to_string();
                             if let Some(address_filter) = &self.config.address_filter {
-                                passed &= address_filter(&addr, v);
+                                passed &= address_filter(&addr);
                             } else {
                                 passed &= addr == *v;
                             }
@@ -564,7 +553,7 @@ impl ScannerWorker {
                         .collect::<Vec<_>>();
 
                     if let Some(characteristics_filter) = &self.config.characteristics_filter {
-                        characteristics_filter(&characteristics, uuid)
+                        characteristics_filter(&characteristics)
                     } else {
                         characteristics.contains(uuid)
                     }
@@ -591,8 +580,8 @@ mod tests {
     use super::{Filter, ScanConfig, Scanner};
     use crate::Device;
     use btleplug::{api::BDAddr, Error};
-    use futures::StreamExt;
     use std::{future::Future, time::Duration};
+    use tokio_stream::StreamExt;
     use uuid::Uuid;
 
     async fn device_stream<T: Future<Output = ()>>(
@@ -601,9 +590,11 @@ mod tests {
     ) {
         let duration = Duration::from_millis(15_000);
         if let Err(_) = tokio::time::timeout(duration, async move {
-            while let Some(device) = scanner.device_stream().next().await {
-                callback(device).await;
-                break;
+            if let Ok(mut stream) = scanner.device_stream() {
+                while let Some(device) = stream.next().await {
+                    callback(device).await;
+                    break;
+                }
             }
         })
         .await

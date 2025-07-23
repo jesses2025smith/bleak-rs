@@ -1,8 +1,10 @@
 use bleasy::{ScanConfig, Scanner};
-use futures::StreamExt;
-use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Arc;
+use std::sync::{
+    atomic::{AtomicU32, Ordering},
+    Arc,
+};
 use tokio::time::{sleep, Duration};
+use tokio_stream::StreamExt;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -15,7 +17,7 @@ async fn main() -> anyhow::Result<()> {
     scanner.start(ScanConfig::default()).await?;
 
     // Create a stream that is provided with discovered devices
-    let mut device_stream = scanner.device_stream();
+    let mut device_stream = scanner.device_stream()?;
 
     // Create a thread-safe counter
     let count = Arc::new(AtomicU32::new(0));

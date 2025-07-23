@@ -2,8 +2,8 @@
 //! The device name should be given as a command line argument.
 
 use bleasy::{Filter, ScanConfig, Scanner};
-use futures::StreamExt;
 use std::str::FromStr;
+use tokio_stream::StreamExt;
 use uuid::Uuid;
 
 const POWER_UUID: &str = "00001525-1212-efde-1523-785feabcd124";
@@ -23,7 +23,7 @@ async fn main() -> anyhow::Result<()> {
     let mut scanner = Scanner::new();
     scanner.start(config).await?;
 
-    let mut device_stream = scanner.device_stream();
+    let mut device_stream = scanner.device_stream()?;
 
     let device = device_stream.next().await.unwrap();
 
