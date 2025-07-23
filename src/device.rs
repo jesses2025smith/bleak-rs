@@ -1,9 +1,14 @@
 use btleplug::{
-    api::{BDAddr, Characteristic as BleCharacteristic, Peripheral as _, Service},
-    platform::{Adapter, Peripheral},
+    api::{
+        BDAddr, Central as _, CentralEvent, Characteristic as BleCharacteristic, Peripheral as _,
+        Service,
+    },
+    platform::{Adapter, Peripheral, PeripheralId},
     Result,
 };
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, sync::Arc, time::Duration};
+use tokio::{task::JoinHandle, time};
+use tokio_stream::StreamExt;
 use uuid::Uuid;
 
 use crate::Characteristic;
@@ -12,6 +17,7 @@ use crate::Characteristic;
 pub struct Device {
     pub(self) _adapter: Adapter,
     pub(crate) peripheral: Peripheral,
+    pub(crate) task: Arc<Option<JoinHandle<()>>>,
 }
 
 impl Device {
@@ -19,12 +25,39 @@ impl Device {
         Self {
             _adapter: adapter,
             peripheral,
+            task: Arc::new(None),
         }
     }
 
     #[inline]
     pub fn address(&self) -> BDAddr {
         self.peripheral.address()
+    }
+
+    /// add device disconnected callback
+    pub fn on_disconnected<F>(&mut self, f: F)
+    where
+        F: FnOnce(PeripheralId) + Send + Sync + 'static,
+    {
+        let adapter_clone = self._adapter.clone();
+        let peripheral_clone = self.peripheral.clone();
+        let handle = tokio::spawn(async move {
+            if let Ok(mut stream) = adapter_clone.events().await {
+                while let Some(event) = stream.next().await {
+                    match event {
+                        CentralEvent::DeviceDisconnected(per) => {
+                            if per == peripheral_clone.id() {
+                                f(per);
+                                break;
+                            }
+                        }
+                        _ => time::sleep(Duration::from_micros(100)).await,
+                    }
+                }
+            }
+        });
+
+        self.task = Arc::new(Some(handle));
     }
 
     /// Signal strength
