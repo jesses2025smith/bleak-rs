@@ -1,6 +1,6 @@
 [package]
 name = "bleak-py"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
 authors = ["Jesse Smith <jesses2025smith@gmail.com>"]
 
