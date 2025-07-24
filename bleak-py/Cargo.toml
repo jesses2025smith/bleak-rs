@@ -1,0 +1,21 @@
+[package]
+name = "bleak-py"
+version = "0.1.0"
+edition.workspace = true
+authors = ["Jesse Smith <jesses2025smith@gmail.com>"]
+
+license.workspace = true
+repository.workspace = true
+homepage = "https://github.com/jesses2025smith/bleak-rs"
+
+[lib]
+name = "bleak_py"
+crate-type = ["cdylib"]
+
+[dependencies]
+bleak-rs = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+tokio-stream = { workspace = true }
+pyo3 = { workspace = true, features = ["uuid"] }
+pyo3-async-runtimes = { workspace = true, features = ["tokio-runtime"] }
+uuid = { workspace = true, features = ["v4"] }

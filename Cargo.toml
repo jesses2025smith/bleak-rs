@@ -1,16 +1,17 @@
 [workspace]
 members = [
     ".",
+    "bleak-py",
 ]
 
 [workspace.dependencies]
 anyhow = "1"
-#bleak-rs = { path = "." }
+bleak-rs = { path = "." }
 btleplug = "0.11"
 log = "0.4"
 pretty_env_logger = "0.5"
-#pyo3 = "0.25"
-#pyo3-async-runtimes = "0.25"
+pyo3 = "0.25"
+pyo3-async-runtimes = "0.25"
 stream-cancel = "0.8"
 tokio = "1.46"
 tokio-stream = "0.1"
