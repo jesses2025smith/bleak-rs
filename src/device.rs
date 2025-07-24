@@ -37,7 +37,7 @@ impl Device {
     /// add device disconnected callback
     pub fn on_disconnected<F>(&mut self, f: F)
     where
-        F: FnOnce(PeripheralId) + Send + Sync + 'static,
+        F: FnOnce(PeripheralId) + Send + 'static,
     {
         let adapter_clone = self._adapter.clone();
         let peripheral_clone = self.peripheral.clone();
