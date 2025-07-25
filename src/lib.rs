@@ -11,7 +11,7 @@
 //! ```rust,no_run
 //! use bleasy::common::characteristics::BATTERY_LEVEL;
 //! use bleasy::{Error, ScanConfig, Scanner};
-//! use futures::StreamExt;
+//! use tokio_stream::StreamExt;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Error> {

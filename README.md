@@ -17,7 +17,7 @@ a value from that characteristic. For more examples, see the [examples](./exampl
 ```rust
 use bleasy::common::characteristics::BATTERY_LEVEL;
 use bleasy::{Error, ScanConfig, Scanner};
-use futures::StreamExt;
+use tokio_stream::StreamExt;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
