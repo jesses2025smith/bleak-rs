@@ -7,8 +7,6 @@ name: CI
 
 on:
   push:
-    branches:
-      - py
     tags:
       - 'v*'
   pull_request:
@@ -25,8 +23,6 @@ jobs:
         platform:
           - runner: ubuntu-22.04
             target: x86_64
-          - runner: ubuntu-22.04
-            target: aarch64
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -36,14 +32,57 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --find-interpreter
+          args: --release --out bleak-py/dist --find-interpreter --manifest-path bleak-py/Cargo.toml
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: auto
+          before-script-linux: |
+            # Install system dependencies for D-Bus
+            if command -v yum &> /dev/null; then
+              yum install -y dbus-devel pkgconfig
+              # For aarch64 cross-compilation
+              if [ "${{ matrix.platform.target }}" = "aarch64" ]; then
+                yum install -y gcc-aarch64-linux-gnu
+                # Try to install cross-compilation libraries
+                yum install -y dbus-devel.aarch64 || echo "Cross-compilation dbus not available"
+              fi
+            elif command -v dnf &> /dev/null; then
+              dnf install -y dbus-devel pkgconf-pkg-config
+              # For aarch64 cross-compilation
+              if [ "${{ matrix.platform.target }}" = "aarch64" ]; then
+                dnf install -y gcc-aarch64-linux-gnu
+                dnf install -y dbus-devel.aarch64 || echo "Cross-compilation dbus not available"
+              fi
+            elif command -v apt-get &> /dev/null; then
+              apt-get update
+              apt-get install -y libdbus-1-dev pkg-config
+              # For aarch64 cross-compilation
+              if [ "${{ matrix.platform.target }}" = "aarch64" ]; then
+                dpkg --add-architecture arm64
+                apt-get update
+                apt-get install -y gcc-aarch64-linux-gnu libdbus-1-dev:arm64
+                # Set up pkg-config for cross-compilation
+                export PKG_CONFIG_ALLOW_CROSS=1
+                export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
+                export PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig
+                export PKG_CONFIG_SYSROOT_DIR=/
+                # Create a cross-compilation wrapper for pkg-config
+                cat > /usr/local/bin/aarch64-linux-gnu-pkg-config << 'EOF'
+            #!/bin/bash
+            export PKG_CONFIG_ALLOW_CROSS=1
+            export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
+            export PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig
+            export PKG_CONFIG_SYSROOT_DIR=/
+            exec pkg-config "$@"
+            EOF
+                chmod +x /usr/local/bin/aarch64-linux-gnu-pkg-config
+                export PKG_CONFIG=/usr/local/bin/aarch64-linux-gnu-pkg-config
+              fi
+            fi
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
           name: wheels-linux-${{ matrix.platform.target }}
-          path: dist
+          path: bleak-py/dist
 
   windows:
     runs-on: ${{ matrix.platform.runner }}
@@ -62,13 +101,13 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --find-interpreter
+          args: --release --out bleak-py/dist --find-interpreter --manifest-path bleak-py/Cargo.toml
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
           name: wheels-windows-${{ matrix.platform.target }}
-          path: dist
+          path: bleak-py/dist
 
   macos:
     runs-on: ${{ matrix.platform.runner }}
@@ -88,13 +127,13 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist --find-interpreter
+          args: --release --out bleak-py/dist --find-interpreter --manifest-path bleak-py/Cargo.toml
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
           name: wheels-macos-${{ matrix.platform.target }}
-          path: dist
+          path: bleak-py/dist
 
   sdist:
     runs-on: ubuntu-latest
@@ -104,12 +143,12 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
-          args: --out dist
+          args: --out bleak-py/dist --manifest-path bleak-py/Cargo.toml
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:
           name: wheels-sdist
-          path: dist
+          path: bleak-py/dist
 
   release:
     name: Release
