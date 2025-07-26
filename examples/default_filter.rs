@@ -8,7 +8,7 @@ use tokio_stream::StreamExt;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    pretty_env_logger::init();
+    rsutil::log::Log4rsConfig::default().initialize().unwrap();
 
     // Create a new BLE device scanner
     let mut scanner = Scanner::new();
