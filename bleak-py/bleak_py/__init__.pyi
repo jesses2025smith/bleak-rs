@@ -1,7 +1,7 @@
 from typing import Callable, Optional, List
 
 class BLEDevice(object):
-    def address(self, *args, **kwargs) -> str:
+    def address(self) -> str:
         """Get the address of BLE device"""
 
     async def connect(self) -> None:
@@ -111,7 +111,7 @@ class BLEDevice(object):
                 ``False``, a write-without-response operation will be used.
                 Omitting the argument is deprecated and may raise a warning.
                 If this arg is omitted, the default behavior is to check the
-                characteristic properties to see if the "write" property is
+                characteristic properties to see if the characteristic properties to see if the "write" property is
                 present. If it is, a write-with-response operation will be
                 used. Note: some devices may incorrectly report or omit the
                 property, which is why an explicit argument is encouraged.
