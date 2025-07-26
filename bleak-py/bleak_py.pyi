@@ -1,9 +1,6 @@
 from typing import Callable, Optional, List
 
 class BLEDevice(object):
-    pass
-
-class BLEClient(object):
     def address(self, *args, **kwargs) -> str:
         """Get the address of BLE device"""
 
@@ -29,6 +26,11 @@ class BLEClient(object):
     async def local_name(self) -> Optional[str]:
         """
         The local name of the device or ``None`` if not included in advertising data.
+        """
+
+    def on_disconnect(self, callback: Callable[[str, ], None]):
+        """
+        The callback when device is disconnected.
         """
 
     async def read_gatt_char(self, character: str) -> List[int]:
@@ -114,9 +116,6 @@ class BLEClient(object):
                 used. Note: some devices may incorrectly report or omit the
                 property, which is why an explicit argument is encouraged.
         """
-
-    def __init__(self, device: BLEDevice, disconnected_callback: Optional[Callable[[str, ], None]] = None):
-        pass
 
 
 async def discover(timeout: Optional[int] = 15) -> List[BLEDevice]:

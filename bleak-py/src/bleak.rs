@@ -35,48 +35,15 @@ pub struct BLEDevice {
     context: Arc<Mutex<Option<Context>>>,
 }
 
-#[pyclass]
-#[derive(Debug, Clone)]
-pub struct BLEClient {
-    inner: BLEDevice,
-}
-
 #[pymethods]
-impl BLEClient {
-    #[new]
-    #[pyo3(signature = (device, disconnected_callback=None))]
-    pub fn new(mut device: BLEDevice, disconnected_callback: Option<Py<PyFunction>>) -> Self {
-        let (tx, rx) = channel::<String>();
-
-        if let Some(callback) = disconnected_callback {
-            thread::spawn(move || {
-                // Receive messages from the channel
-                while let Ok(value) = rx.recv() {
-                    Python::with_gil(|py| {
-                        if let Err(e) = callback.call1(py, (value,)) {
-                            e.display(py);
-                        }
-                    });
-                }
-            });
-        }
-
-        // Register the on_disconnected callback with a Send + 'static closure
-        device.device.on_disconnected(move |v| {
-            // Send the PeripheralId through the channel
-            let _ = tx.send(v.to_string());
-        });
-
-        Self { inner: device }
-    }
-
+impl BLEDevice {
     pub fn address(&self) -> PyResult<String> {
-        let address = self.inner.device.address();
+        let address = self.device.address();
         Ok(address.to_string())
     }
 
     pub fn local_name<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let device = self.inner.device.clone();
+        let device = self.device.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let name = device.local_name().await;
 
@@ -85,7 +52,7 @@ impl BLEClient {
     }
 
     pub fn rssi<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let device = self.inner.device.clone();
+        let device = self.device.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let value = device.rssi().await;
 
@@ -93,8 +60,29 @@ impl BLEClient {
         })
     }
 
+    pub fn on_disconnected(&mut self, callback: Py<PyFunction>) {
+        let (tx, rx) = channel::<String>();
+
+        thread::spawn(move || {
+            // Receive messages from the channel
+            while let Ok(value) = rx.recv() {
+                Python::with_gil(|py| {
+                    if let Err(e) = callback.call1(py, (value,)) {
+                        e.display(py);
+                    }
+                });
+            }
+        });
+
+        // Register the on_disconnected callback with a Send + 'static closure
+        self.device.on_disconnected(move |v| {
+            // Send the PeripheralId through the channel
+            let _ = tx.send(v.to_string());
+        });
+    }
+
     pub fn connect<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let device = self.inner.device.clone();
+        let device = self.device.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             device
                 .connect()
@@ -106,8 +94,8 @@ impl BLEClient {
     }
 
     pub fn disconnect<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let device = self.inner.device.clone();
-        let context = self.inner.context.clone();
+        let device = self.device.clone();
+        let context = self.context.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             if let Some(ctx) = context.lock().await.take() {
                 ctx.unsubscribe(&device).await;
@@ -123,7 +111,7 @@ impl BLEClient {
     }
 
     pub fn is_connected<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let device = self.inner.device.clone();
+        let device = self.device.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let value = device
                 .is_connected()
@@ -141,8 +129,8 @@ impl BLEClient {
         callback: Py<PyFunction>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let uuid = character.extract::<Uuid>()?;
-        let device = self.inner.device.clone();
-        let context = self.inner.context.clone();
+        let device = self.device.clone();
+        let context = self.context.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let character = device
                 .characteristic(uuid)
@@ -180,8 +168,8 @@ impl BLEClient {
     }
 
     pub fn stop_notify<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let device = self.inner.device.clone();
-        let context = self.inner.context.clone();
+        let device = self.device.clone();
+        let context = self.context.clone();
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             if let Some(ctx) = context.lock().await.take() {
                 ctx.unsubscribe(&device).await;
@@ -196,7 +184,7 @@ impl BLEClient {
         py: Python<'py>,
         character: Bound<'py, PyString>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let device = self.inner.device.clone();
+        let device = self.device.clone();
         let uuid = character.extract::<Uuid>()?;
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let character = device
@@ -225,8 +213,8 @@ impl BLEClient {
         data: Vec<u8>,
         response: bool,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let device = self.inner.device.clone();
-        // let context = self.inner.context.clone();
+        let device = self.device.clone();
+        // let context = self.context.clone();
         let uuid = character.extract::<Uuid>()?;
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let character = device
@@ -253,7 +241,7 @@ impl BLEClient {
 #[pyfunction]
 #[pyo3(signature = (timeout = 15))]
 pub fn discover(py: Python, timeout: u64) -> PyResult<Bound<PyAny>> {
-    let duration = Duration::from_millis(timeout);
+    let duration = Duration::from_secs(timeout);
     let config = ScanConfig::default().stop_after_timeout(duration);
     let mut scanner = Scanner::new();
 
