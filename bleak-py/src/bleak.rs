@@ -1,10 +1,14 @@
 use bleasy::{Device, Filter, ScanConfig, Scanner};
 use pyo3::{
-    Bound, Py, PyResult, Python, exceptions::PyRuntimeError, prelude::PyAnyMethods, pyclass,
-    pyfunction, pymethods, types::*,
+    exceptions::PyRuntimeError, prelude::PyAnyMethods, pyclass, pyfunction, pymethods, types::*,
+    Bound, Py, PyResult, Python,
 };
-use std::{sync::{mpsc::channel, Arc}, time::Duration, thread};
-use tokio::{spawn, sync::Mutex, task::JoinHandle, time};
+use std::{
+    sync::{mpsc::channel, Arc},
+    thread,
+    time::Duration,
+};
+use tokio::{spawn, sync::Mutex, task::JoinHandle};
 use tokio_stream::StreamExt;
 use uuid::Uuid;
 
@@ -41,10 +45,7 @@ pub struct BLEClient {
 impl BLEClient {
     #[new]
     #[pyo3(signature = (device, disconnected_callback=None))]
-    pub fn new(
-        mut device: BLEDevice,
-        disconnected_callback: Option<Py<PyFunction>>,
-    ) -> Self {
+    pub fn new(mut device: BLEDevice, disconnected_callback: Option<Py<PyFunction>>) -> Self {
         let (tx, rx) = channel::<String>();
 
         if let Some(callback) = disconnected_callback {
@@ -52,7 +53,7 @@ impl BLEClient {
                 // Receive messages from the channel
                 while let Ok(value) = rx.recv() {
                     Python::with_gil(|py| {
-                        if let Err(e) = callback.call1(py, (value, )) {
+                        if let Err(e) = callback.call1(py, (value,)) {
                             e.display(py);
                         }
                     });
@@ -250,6 +251,36 @@ impl BLEClient {
 }
 
 #[pyfunction]
+#[pyo3(signature = (timeout = 15))]
+pub fn discover(py: Python, timeout: u64) -> PyResult<Bound<PyAny>> {
+    let duration = Duration::from_millis(timeout);
+    let config = ScanConfig::default().stop_after_timeout(duration);
+    let mut scanner = Scanner::new();
+
+    pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        scanner
+            .start(config)
+            .await
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+
+        let mut results = Vec::new();
+        while let Some(device) = scanner
+            .device_stream()
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+            .next()
+            .await
+        {
+            results.push(BLEDevice {
+                device,
+                context: Arc::new(Mutex::new(None)),
+            });
+        }
+
+        Ok(results)
+    })
+}
+
+#[pyfunction]
 #[pyo3(signature = (address, timeout = 15))]
 pub fn find_device_by_address<'py>(
     py: Python<'py>,
@@ -287,7 +318,7 @@ fn _find_device(py: Python, filters: Vec<Filter>, timeout: u64) -> PyResult<Boun
     let duration = Duration::from_secs(timeout);
     let config = ScanConfig::default()
         .with_filters(&filters)
-        .stop_after_timeout(duration.clone())
+        .stop_after_timeout(duration)
         .stop_after_first_match();
     let mut scanner = Scanner::new();
 
@@ -297,30 +328,21 @@ fn _find_device(py: Python, filters: Vec<Filter>, timeout: u64) -> PyResult<Boun
             .await
             .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
 
-        time::timeout(duration, async move {
-            while let Some(device) = scanner
-                .device_stream()
-                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
-                .next()
-                .await
-            {
-                // rsutil::info!("BLE device found: {}", device.address());
-                return Ok(BLEDevice {
-                    device,
-                    context: Arc::new(Mutex::new(None)),
-                });
-            }
+        while let Some(device) = scanner
+            .device_stream()
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+            .next()
+            .await
+        {
+            // rsutil::info!("BLE device found: {}", device.address());
+            return Ok(BLEDevice {
+                device,
+                context: Arc::new(Mutex::new(None)),
+            });
+        }
 
-            Err(PyRuntimeError::new_err(
-                bleasy::Error::DeviceNotFound.to_string(),
-            ))
-        })
-        .await
-        .map_err(|_| {
-            PyRuntimeError::new_err(format!(
-                "Couldn't find the device after time elapsed: {} seconds",
-                timeout
-            ))
-        })?
+        Err(PyRuntimeError::new_err(
+            bleasy::Error::DeviceNotFound.to_string(),
+        ))
     })
 }

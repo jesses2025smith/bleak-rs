@@ -119,6 +119,12 @@ class BLEClient(object):
         pass
 
 
+async def discover(timeout: Optional[int] = 15) -> List[BLEDevice]:
+    """
+    Obtain ``BLEDevice``s for a BLE server in during time.
+    """
+
+
 async def find_device_by_address(address: str, timeout: Optional[int] = 15) -> BLEDevice:
     """
     Obtain a ``BLEDevice`` for a BLE server that matches the address given.
