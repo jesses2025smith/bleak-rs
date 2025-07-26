@@ -58,9 +58,9 @@ pub use btleplug::{api::BDAddr, Error, Result};
 
 #[cfg(test)]
 mod tests {
-    use crate::{Device, Filter, ScanConfig, Scanner};
+    use crate::{Filter, ScanConfig, Scanner};
     use btleplug::{api::BDAddr, Error};
-    use std::{future::Future, time::Duration};
+    use std::time::Duration;
     use tokio_stream::StreamExt;
     use uuid::Uuid;
 
@@ -68,36 +68,17 @@ mod tests {
     async fn test_discover() -> anyhow::Result<()> {
         rsutil::log::Log4rsConfig::default().initialize().unwrap();
 
-        let duration = Duration::from_secs(10);
-        let config = ScanConfig::default().stop_after_timeout(duration);
+        let cfg = ScanConfig::default()
+            .stop_after_timeout(Duration::from_secs(10));
 
         let mut scanner = Scanner::new();
-        scanner.start(config).await?;
+        scanner.start(cfg).await?;
 
         while let Some(device) = scanner.device_stream()?.next().await {
             println!("Found device: {}", device.address());
         }
 
         Ok(())
-    }
-
-    async fn device_stream<T: Future<Output = ()>>(
-        scanner: Scanner,
-        callback: impl Fn(Device) -> T,
-    ) {
-        let duration = Duration::from_millis(15_000);
-        if let Err(_) = tokio::time::timeout(duration, async move {
-            if let Ok(mut stream) = scanner.device_stream() {
-                while let Some(device) = stream.next().await {
-                    callback(device).await;
-                    break;
-                }
-            }
-        })
-        .await
-        {
-            eprintln!("timeout....");
-        }
     }
 
     #[tokio::test]
@@ -108,14 +89,14 @@ mod tests {
         let filers = vec![Filter::Address("E3:9E:2A:4D:AA:97".into())];
         let cfg = ScanConfig::default()
             .with_filters(&filers)
+            .stop_after_timeout(Duration::from_secs(10))
             .stop_after_first_match();
         let mut scanner = Scanner::default();
 
         scanner.start(cfg).await?;
-        device_stream(scanner, |device| async move {
+        while let Some(device) = scanner.device_stream()?.next().await {
             assert_eq!(device.address(), BDAddr::from(mac_addr));
-        })
-        .await;
+        }
 
         Ok(())
     }
@@ -129,14 +110,14 @@ mod tests {
         ))];
         let cfg = ScanConfig::default()
             .with_filters(&filers)
+            .stop_after_timeout(Duration::from_secs(10))
             .stop_after_first_match();
         let mut scanner = Scanner::default();
 
         scanner.start(cfg).await?;
-        device_stream(scanner, |device| async move {
+        while let Some(device) = scanner.device_stream()?.next().await {
             println!("device: {:?} found", device);
-        })
-        .await;
+        }
 
         Ok(())
     }
@@ -149,14 +130,14 @@ mod tests {
         let filers = vec![Filter::Name(name.into())];
         let cfg = ScanConfig::default()
             .with_filters(&filers)
+            .stop_after_timeout(Duration::from_secs(10))
             .stop_after_first_match();
         let mut scanner = Scanner::default();
 
         scanner.start(cfg).await?;
-        device_stream(scanner, |device| async move {
+        while let Some(device) = scanner.device_stream()?.next().await {
             assert_eq!(device.local_name().await, Some(name.into()));
-        })
-        .await;
+        }
 
         Ok(())
     }
@@ -168,14 +149,14 @@ mod tests {
         let filers = vec![Filter::Rssi(-70)];
         let cfg = ScanConfig::default()
             .with_filters(&filers)
+            .stop_after_timeout(Duration::from_secs(10))
             .stop_after_first_match();
         let mut scanner = Scanner::default();
 
         scanner.start(cfg).await?;
-        device_stream(scanner, |device| async move {
+        while let Some(device) = scanner.device_stream()?.next().await {
             println!("device: {:?} found", device);
-        })
-        .await;
+        }
 
         Ok(())
     }
@@ -188,14 +169,14 @@ mod tests {
         let filers = vec![Filter::Service(service)];
         let cfg = ScanConfig::default()
             .with_filters(&filers)
+            .stop_after_timeout(Duration::from_secs(10))
             .stop_after_first_match();
         let mut scanner = Scanner::default();
 
         scanner.start(cfg).await?;
-        device_stream(scanner, |device| async move {
+        while let Some(device) = scanner.device_stream()?.next().await {
             println!("device: {:?} found", device);
-        })
-        .await;
+        }
 
         Ok(())
     }
