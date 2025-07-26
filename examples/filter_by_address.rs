@@ -10,7 +10,7 @@ async fn main() -> anyhow::Result<()> {
         .nth(1)
         .expect("Expected address in format XX:XX:XX:XX:XX:XX");
 
-    pretty_env_logger::init();
+    rsutil::log::Log4rsConfig::default().initialize().unwrap();
 
     log::info!("Scanning for device {}", address);
 

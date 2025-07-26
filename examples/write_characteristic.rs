@@ -13,7 +13,7 @@ async fn main() -> anyhow::Result<()> {
     // Give BLE device address as a command line argument.
 
     let name = std::env::args().nth(1).expect("Expected device name");
-    pretty_env_logger::init();
+    rsutil::log::Log4rsConfig::default().initialize().unwrap();
 
     let config = ScanConfig::default()
         .with_filters(&vec![Filter::Name(name.clone())])

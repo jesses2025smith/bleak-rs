@@ -21,7 +21,7 @@ use tokio_stream::StreamExt;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    pretty_env_logger::init();
+    rsutil::log::Log4rsConfig::default().initialize().unwrap();
 
     // Filter devices that have battery level characteristic
     let config = ScanConfig::default()

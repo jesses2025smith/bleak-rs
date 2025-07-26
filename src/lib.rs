@@ -15,7 +15,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Error> {
-//!     pretty_env_logger::init();
+//!     rsutil::log::Log4rsConfig::default().initialize().unwrap();
 //!
 //!     // Create a filter for devices that have battery level characteristic
 //!     let config = ScanConfig::default()
@@ -40,14 +40,163 @@
 
 #![warn(clippy::all, future_incompatible, nonstandard_style, rust_2018_idioms)]
 
-pub use btleplug::{api::BDAddr, Error, Result};
-
-pub use characteristic::Characteristic;
-pub use device::{Device, DeviceEvent};
-pub use scanner::{Filter, ScanConfig, Scanner};
-
+mod characteristic;
 mod device;
 mod scanner;
 
-mod characteristic;
 pub mod common;
+
+pub use self::{
+    characteristic::Characteristic,
+    device::{Device, DeviceEvent},
+    scanner::{
+        config::{Filter, ScanConfig},
+        Scanner,
+    },
+};
+pub use btleplug::{api::BDAddr, Error, Result};
+
+#[cfg(test)]
+mod tests {
+    use crate::{Device, Filter, ScanConfig, Scanner};
+    use btleplug::{api::BDAddr, Error};
+    use std::{future::Future, time::Duration};
+    use tokio_stream::StreamExt;
+    use uuid::Uuid;
+
+    #[tokio::test]
+    async fn test_discover() -> anyhow::Result<()> {
+        rsutil::log::Log4rsConfig::default().initialize().unwrap();
+
+        let duration = Duration::from_secs(10);
+        let config = ScanConfig::default().stop_after_timeout(duration);
+
+        let mut scanner = Scanner::new();
+        scanner.start(config).await?;
+
+        while let Some(device) = scanner.device_stream()?.next().await {
+            println!("Found device: {}", device.address());
+        }
+
+        Ok(())
+    }
+
+    async fn device_stream<T: Future<Output = ()>>(
+        scanner: Scanner,
+        callback: impl Fn(Device) -> T,
+    ) {
+        let duration = Duration::from_millis(15_000);
+        if let Err(_) = tokio::time::timeout(duration, async move {
+            if let Ok(mut stream) = scanner.device_stream() {
+                while let Some(device) = stream.next().await {
+                    callback(device).await;
+                    break;
+                }
+            }
+        })
+        .await
+        {
+            eprintln!("timeout....");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_filter_by_address() -> Result<(), Error> {
+        rsutil::log::Log4rsConfig::default().initialize().unwrap();
+
+        let mac_addr = [0xE3, 0x9E, 0x2A, 0x4D, 0xAA, 0x97];
+        let filers = vec![Filter::Address("E3:9E:2A:4D:AA:97".into())];
+        let cfg = ScanConfig::default()
+            .with_filters(&filers)
+            .stop_after_first_match();
+        let mut scanner = Scanner::default();
+
+        scanner.start(cfg).await?;
+        device_stream(scanner, |device| async move {
+            assert_eq!(device.address(), BDAddr::from(mac_addr));
+        })
+        .await;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_filter_by_character() -> Result<(), Error> {
+        rsutil::log::Log4rsConfig::default().initialize().unwrap();
+
+        let filers = vec![Filter::Characteristic(Uuid::from_u128(
+            0x6e400001_b5a3_f393_e0a9_e50e24dcca9e,
+        ))];
+        let cfg = ScanConfig::default()
+            .with_filters(&filers)
+            .stop_after_first_match();
+        let mut scanner = Scanner::default();
+
+        scanner.start(cfg).await?;
+        device_stream(scanner, |device| async move {
+            println!("device: {:?} found", device);
+        })
+        .await;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_filter_by_name() -> Result<(), Error> {
+        rsutil::log::Log4rsConfig::default().initialize().unwrap();
+
+        let name = "73429485";
+        let filers = vec![Filter::Name(name.into())];
+        let cfg = ScanConfig::default()
+            .with_filters(&filers)
+            .stop_after_first_match();
+        let mut scanner = Scanner::default();
+
+        scanner.start(cfg).await?;
+        device_stream(scanner, |device| async move {
+            assert_eq!(device.local_name().await, Some(name.into()));
+        })
+        .await;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_filter_by_rssi() -> Result<(), Error> {
+        rsutil::log::Log4rsConfig::default().initialize().unwrap();
+
+        let filers = vec![Filter::Rssi(-70)];
+        let cfg = ScanConfig::default()
+            .with_filters(&filers)
+            .stop_after_first_match();
+        let mut scanner = Scanner::default();
+
+        scanner.start(cfg).await?;
+        device_stream(scanner, |device| async move {
+            println!("device: {:?} found", device);
+        })
+        .await;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_filter_by_service() -> Result<(), Error> {
+        rsutil::log::Log4rsConfig::default().initialize().unwrap();
+
+        let service = Uuid::from_u128(0x6e400001_b5a3_f393_e0a9_e50e24dcca9e);
+        let filers = vec![Filter::Service(service)];
+        let cfg = ScanConfig::default()
+            .with_filters(&filers)
+            .stop_after_first_match();
+        let mut scanner = Scanner::default();
+
+        scanner.start(cfg).await?;
+        device_stream(scanner, |device| async move {
+            println!("device: {:?} found", device);
+        })
+        .await;
+
+        Ok(())
+    }
+}

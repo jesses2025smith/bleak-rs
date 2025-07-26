@@ -9,7 +9,6 @@ anyhow = "1"
 bleak-rs = { path = "." }
 btleplug = "0.11"
 log = "0.4"
-pretty_env_logger = "0.5"
 pyo3 = "0.25"
 pyo3-async-runtimes = "0.25"
 stream-cancel = "0.8"
@@ -21,7 +20,7 @@ uuid = "1.17"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/jesses2025smith/bleak-rs"
-version = "0.1.5"
+version = "0.1.6"
 
 [package]
 name = "bleak-rs"
@@ -51,5 +50,5 @@ uuid = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }
-pretty_env_logger = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
+rsutil = { version = "0.1", features = ["log4rs"] }
