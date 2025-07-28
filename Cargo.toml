@@ -10,6 +10,7 @@ btleplug = "0.11"
 log = "0.4"
 #pyo3 = "0.25"
 #pyo3-async-runtimes = "0.25"
+rsutil = "0.1"
 stream-cancel = "0.8"
 tokio = "1.46"
 tokio-stream = "0.1"
@@ -50,4 +51,4 @@ uuid = { workspace = true }
 [dev-dependencies]
 anyhow = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
-rsutil = { version = "0.1", features = ["log4rs"] }
+rsutil = { workspace = true, features = ["log4rs"] }
