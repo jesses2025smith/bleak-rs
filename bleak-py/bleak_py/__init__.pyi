@@ -66,9 +66,14 @@ class BLEDevice(object):
                 function or async function.
         ."""
 
-    async def stop_notify(self):
+    async def stop_notify(self, character: str):
         """
         Deactivate notification/indication on a specified characteristic.
+
+        Args:
+            character:
+                The characteristic(a uuid string) to deactivate
+                notifications/indications on a characteristic.
         """
 
     async def write_gatt_char(self, character: str, data: [bytes, bytearray, List[int]], response: Optional[bool] = False):

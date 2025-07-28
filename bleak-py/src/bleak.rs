@@ -11,15 +11,24 @@ use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
 use uuid::Uuid;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Default)]
 struct Context {
-    notify_character: Uuid,
+    notify_characters: Vec<Uuid>,
 }
 
 impl Context {
+    #[inline(always)]
+    fn push(&mut self, uuid: Uuid) {
+        self.notify_characters.push(uuid);
+    }
+
+    /// unsubscribe all characters.
+    #[inline(always)]
     async fn unsubscribe(&self, device: &Device) {
-        if let Ok(Some(char)) = device.characteristic(self.notify_character).await {
-            let _ = char.unsubscribe().await;
+        for uuid in &self.notify_characters {
+            if let Ok(Some(char)) = device.characteristic(uuid.clone()).await {
+                let _ = char.unsubscribe().await;
+            }
         }
     }
 }
@@ -28,7 +37,7 @@ impl Context {
 #[derive(Debug, Clone)]
 pub struct BLEDevice {
     device: Device,
-    context: Arc<Mutex<Option<Context>>>,
+    context: Arc<Mutex<Context>>,
 }
 
 #[pymethods]
@@ -96,9 +105,7 @@ impl BLEDevice {
         let context = self.context.clone();
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            if let Some(ctx) = context.lock().await.take() {
-                ctx.unsubscribe(&device).await;
-            }
+            context.lock().await.unsubscribe(&device).await;
 
             device
                 .disconnect()
@@ -166,22 +173,36 @@ impl BLEDevice {
                 }
             });
 
-            context.lock().await.replace(Context {
-                notify_character: uuid,
-            });
+            context.lock().await.push(uuid);
 
             Ok(())
         })
     }
 
-    pub fn stop_notify<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    pub fn stop_notify<'py>(
+        &self,
+        py: Python<'py>,
+        character: Bound<'py, PyString>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let character = character.extract::<&str>()?;
+        let uuid = Uuid::try_from(character).map_err(|e| PyValueError::new_err(e.to_string()))?;
         let device = self.device.clone();
-        let context = self.context.clone();
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            if let Some(ctx) = context.lock().await.take() {
-                ctx.unsubscribe(&device).await;
-            }
+            let character = device
+                .characteristic(uuid)
+                .await
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                .ok_or(PyValueError::new_err(format!(
+                    "Characteristic not found: {}",
+                    uuid
+                )))?;
+
+            character
+                .unsubscribe()
+                .await
+                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+            // remove from context?
 
             Ok(())
         })
@@ -271,7 +292,7 @@ pub fn discover(py: Python, timeout: u64) -> PyResult<Bound<PyAny>> {
         {
             results.push(BLEDevice {
                 device,
-                context: Arc::new(Mutex::new(None)),
+                context: Arc::new(Mutex::new(Default::default())),
             });
         }
 
@@ -336,7 +357,7 @@ fn _find_device(py: Python, filters: Vec<Filter>, timeout: u64) -> PyResult<Boun
             // rsutil::info!("BLE device found: {}", device.address());
             return Ok(BLEDevice {
                 device,
-                context: Arc::new(Mutex::new(None)),
+                context: Arc::new(Mutex::new(Default::default())),
             });
         }
 
