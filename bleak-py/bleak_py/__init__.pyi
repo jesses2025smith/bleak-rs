@@ -1,4 +1,4 @@
-from typing import Callable, Optional, List, Union
+from typing import Callable, Coroutine, Optional, List, Union
 
 class BLEDevice(object):
     def address(self) -> str:
@@ -39,9 +39,7 @@ class BLEDevice(object):
 
         Args:
             character:
-                The characteristic to read from, specified by either integer
-                handle, UUID or directly by the BleakGATTCharacteristic object
-                representing it.
+                The characteristic(a uuid string) to read from.
 
         Returns:
             The read data.
@@ -52,7 +50,7 @@ class BLEDevice(object):
         The Radio Receive Signal Strength (RSSI) in dBm.
         """
 
-    async def start_notify(self, character: str, callback: Callable[[bytearray, ], None]):
+    async def start_notify(self, character: str, callback: Callable[[bytearray, ], Coroutine[Any, Any, None]]):
         """
         Activate notifications/indications on a characteristic.
 
@@ -61,23 +59,16 @@ class BLEDevice(object):
 
         Args:
             character:
-                The characteristic to activate notifications/indications on a
-                characteristic, specified by either integer handle,
-                UUID or directly by the BleakGATTCharacteristic object representing it.
+                The characteristic(a uuid string) to activate
+                notifications/indications on a characteristic.
             callback:
                 The function to be called on notification. Can be regular
                 function or async function.
         ."""
 
-    async def stop_notify(self, character: str):
+    async def stop_notify(self):
         """
         Deactivate notification/indication on a specified characteristic.
-
-        Args:
-            character:
-                The characteristic to deactivate notification/indication on,
-                specified by either integer handle, UUID or directly by the
-                BleakGATTCharacteristic object representing it.
         """
 
     async def write_gatt_char(self, character: str, data: [bytes, bytearray, List[int]], response: Optional[bool] = False):
@@ -95,26 +86,12 @@ class BLEDevice(object):
 
         Args:
             character:
-                The characteristic to write to, specified by either integer
-                handle, UUID or directly by the :class:`~bleak.backends.characteristic.BleakGATTCharacteristic`
-                object representing it. If a device has more than one characteristic
-                with the same UUID, then attempting to use the UUID wil fail and
-                a characteristic object must be used instead.
+                The characteristic(a uuid string) to write to.
             data:
-                The data to send. When a write-with-response operation is used,
-                the length of the data is limited to 512 bytes. When a
-                write-without-response operation is used, the length of the
-                data is limited to :attr:`~bleak.backends.characteristic.BleakGATTCharacteristic.max_write_without_response_size`.
-                Any type that supports the buffer protocol can be passed.
+                The data to send.
             response:
                 If ``True``, a write-with-response operation will be used. If
                 ``False``, a write-without-response operation will be used.
-                Omitting the argument is deprecated and may raise a warning.
-                If this arg is omitted, the default behavior is to check the
-                characteristic properties to see if the characteristic properties to see if the "write" property is
-                present. If it is, a write-with-response operation will be
-                used. Note: some devices may incorrectly report or omit the
-                property, which is why an explicit argument is encouraged.
         """
 
 
