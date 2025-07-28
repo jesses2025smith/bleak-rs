@@ -76,7 +76,7 @@ class BLEDevice(object):
                 notifications/indications on a characteristic.
         """
 
-    async def write_gatt_char(self, character: str, data: [bytes, bytearray, List[int]], response: Optional[bool] = False):
+    async def write_gatt_char(self, character: str, data: [bytes, bytearray, List[int]], response: bool = False):
         """
         Perform a write operation on the specified GATT characteristic.
 
@@ -100,18 +100,18 @@ class BLEDevice(object):
         """
 
 
-async def discover(timeout: Optional[int] = 15) -> List[BLEDevice]:
+async def discover(timeout: int = 15) -> List[BLEDevice]:
     """
     Obtain ``BLEDevice``s for a BLE server in during time.
     """
 
 
-async def find_device_by_address(address: str, timeout: Optional[int] = 15) -> BLEDevice:
+async def find_device_by_address(address: str, timeout: int = 15) -> BLEDevice:
     """
     Obtain a ``BLEDevice`` for a BLE server that matches the address given.
     """
 
-async def find_device_by_name(name: str, timeout: Optional[int] = 15) -> BLEDevice:
+async def find_device_by_name(name: str, timeout: int = 15) -> BLEDevice:
     """
     Obtain a ``BLEDevice`` for a BLE server that matches the name given.
     """
