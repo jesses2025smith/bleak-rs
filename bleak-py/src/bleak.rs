@@ -24,12 +24,14 @@ impl Context {
 
     /// unsubscribe all characters.
     #[inline(always)]
-    async fn unsubscribe(&self, device: &Device) {
+    async fn unsubscribe(&mut self, device: &Device) {
         for uuid in &self.notify_characters {
             if let Ok(Some(char)) = device.characteristic(uuid.clone()).await {
                 let _ = char.unsubscribe().await;
             }
         }
+        
+        self.notify_characters.clear();
     }
 }
 
