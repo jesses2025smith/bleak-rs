@@ -1,21 +1,19 @@
 use bleasy::{Device, Filter, ScanConfig, Scanner};
 use pyo3::{
-    exceptions::PyRuntimeError, prelude::PyAnyMethods, pyclass, pyfunction, pymethods, types::*,
-    Bound, Py, PyResult, Python,
+    exceptions::{PyRuntimeError, PyValueError},
+    prelude::PyAnyMethods,
+    pyclass, pyfunction, pymethods,
+    types::*,
+    Bound, PyObject, PyResult, Python,
 };
-use std::{
-    sync::{mpsc::channel, Arc},
-    thread,
-    time::Duration,
-};
-use tokio::{spawn, sync::Mutex, task::JoinHandle};
+use std::{sync::Arc, time::Duration};
+use tokio::sync::Mutex;
 use tokio_stream::StreamExt;
 use uuid::Uuid;
 
 #[derive(Debug)]
 struct Context {
     notify_character: Uuid,
-    subscribe_task: JoinHandle<()>,
 }
 
 impl Context {
@@ -23,8 +21,6 @@ impl Context {
         if let Ok(Some(char)) = device.characteristic(self.notify_character).await {
             let _ = char.unsubscribe().await;
         }
-
-        self.subscribe_task.abort();
     }
 }
 
@@ -44,6 +40,7 @@ impl BLEDevice {
 
     pub fn local_name<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let device = self.device.clone();
+
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let name = device.local_name().await;
 
@@ -53,6 +50,7 @@ impl BLEDevice {
 
     pub fn rssi<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let device = self.device.clone();
+
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let value = device.rssi().await;
 
@@ -60,29 +58,29 @@ impl BLEDevice {
         })
     }
 
-    pub fn on_disconnected(&mut self, callback: Py<PyFunction>) {
-        let (tx, rx) = channel::<String>();
+    pub fn on_disconnected<'py>(
+        &mut self,
+        py: Python<'py>,
+        callback: PyObject, // Py<PyFunction>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let mut device = self.device.clone();
 
-        thread::spawn(move || {
-            // Receive messages from the channel
-            while let Ok(value) = rx.recv() {
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            device.on_disconnected(move |v| {
                 Python::with_gil(|py| {
-                    if let Err(e) = callback.call1(py, (value,)) {
+                    if let Err(e) = callback.call1(py, (v.to_string(),)) {
                         e.display(py);
                     }
-                });
-            }
-        });
+                })
+            });
 
-        // Register the on_disconnected callback with a Send + 'static closure
-        self.device.on_disconnected(move |v| {
-            // Send the PeripheralId through the channel
-            let _ = tx.send(v.to_string());
-        });
+            Ok(())
+        })
     }
 
     pub fn connect<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let device = self.device.clone();
+
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             device
                 .connect()
@@ -96,6 +94,7 @@ impl BLEDevice {
     pub fn disconnect<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let device = self.device.clone();
         let context = self.context.clone();
+
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             if let Some(ctx) = context.lock().await.take() {
                 ctx.unsubscribe(&device).await;
@@ -112,6 +111,7 @@ impl BLEDevice {
 
     pub fn is_connected<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let device = self.device.clone();
+
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let value = device
                 .is_connected()
@@ -126,17 +126,19 @@ impl BLEDevice {
         &self,
         py: Python<'py>,
         character: Bound<'py, PyString>,
-        callback: Py<PyFunction>,
+        callback: PyObject, // Py<PyFunction>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let uuid = character.extract::<Uuid>()?;
+        let character = character.extract::<&str>()?;
+        let uuid = Uuid::try_from(character).map_err(|e| PyValueError::new_err(e.to_string()))?;
         let device = self.device.clone();
         let context = self.context.clone();
+
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let character = device
                 .characteristic(uuid)
                 .await
                 .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
-                .ok_or(PyRuntimeError::new_err(format!(
+                .ok_or(PyValueError::new_err(format!(
                     "Characteristic not found: {}",
                     uuid
                 )))?;
@@ -146,21 +148,26 @@ impl BLEDevice {
                 .await
                 .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
 
-            let handle = spawn(async move {
-                while let Some(data) = stream.next().await {
-                    // rsutil::trace!("Received: {}", hex::encode(&data));
-                    Python::with_gil(|py| {
-                        let py_data = PyBytes::new(py, &data);
-                        if let Err(e) = callback.call1(py, (py_data,)) {
-                            e.display(py);
-                        }
-                    });
+            Python::with_gil(|py| {
+                if let Err(e) = pyo3_async_runtimes::tokio::future_into_py(py, async move {
+                    while let Some(data) = stream.next().await {
+                        let fut = Python::with_gil(|py| {
+                            let py_data = PyByteArray::new(py, &data);
+                            let coroutine = callback.call1(py, (py_data,))?;
+                            pyo3_async_runtimes::tokio::into_future(coroutine.extract(py)?)
+                        })?;
+
+                        fut.await?;
+                    }
+
+                    Ok(())
+                }) {
+                    e.display(py);
                 }
             });
 
             context.lock().await.replace(Context {
                 notify_character: uuid,
-                subscribe_task: handle,
             });
 
             Ok(())
@@ -170,6 +177,7 @@ impl BLEDevice {
     pub fn stop_notify<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let device = self.device.clone();
         let context = self.context.clone();
+
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             if let Some(ctx) = context.lock().await.take() {
                 ctx.unsubscribe(&device).await;
@@ -184,14 +192,16 @@ impl BLEDevice {
         py: Python<'py>,
         character: Bound<'py, PyString>,
     ) -> PyResult<Bound<'py, PyAny>> {
+        let character = character.extract::<&str>()?;
+        let uuid = Uuid::try_from(character).map_err(|e| PyValueError::new_err(e.to_string()))?;
         let device = self.device.clone();
-        let uuid = character.extract::<Uuid>()?;
+
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let character = device
                 .characteristic(uuid)
                 .await
                 .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
-                .ok_or(PyRuntimeError::new_err(format!(
+                .ok_or(PyValueError::new_err(format!(
                     "Characteristic not found: {}",
                     uuid
                 )))?;
@@ -213,15 +223,16 @@ impl BLEDevice {
         data: Vec<u8>,
         response: bool,
     ) -> PyResult<Bound<'py, PyAny>> {
+        let character = character.extract::<&str>()?;
+        let uuid = Uuid::try_from(character).map_err(|e| PyValueError::new_err(e.to_string()))?;
         let device = self.device.clone();
-        // let context = self.context.clone();
-        let uuid = character.extract::<Uuid>()?;
+
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             let character = device
                 .characteristic(uuid)
                 .await
                 .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
-                .ok_or(PyRuntimeError::new_err(format!(
+                .ok_or(PyValueError::new_err(format!(
                     "Characteristic not found: {}",
                     uuid
                 )))?;

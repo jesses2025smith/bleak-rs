@@ -14,8 +14,10 @@ crate-type = ["cdylib"]
 
 [dependencies]
 bleak-rs = { workspace = true }
+#log = { workspace = true }
+pyo3 = { workspace = true, features = ["uuid"] }
+pyo3-async-runtimes = { workspace = true, features = ["attributes", "tokio-runtime"] }
+#rsutil = { workspace = true, features = ["log4rs"] }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream = { workspace = true }
-pyo3 = { workspace = true, features = ["uuid"] }
-pyo3-async-runtimes = { workspace = true, features = ["tokio-runtime"] }
 uuid = { workspace = true, features = ["v4"] }

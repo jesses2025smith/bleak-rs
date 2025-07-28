@@ -1,4 +1,4 @@
-from typing import Callable, Optional, List
+from typing import Callable, Optional, List, Union
 
 class BLEDevice(object):
     def address(self) -> str:
@@ -28,7 +28,7 @@ class BLEDevice(object):
         The local name of the device or ``None`` if not included in advertising data.
         """
 
-    def on_disconnect(self, callback: Callable[[str, ], None]):
+    def on_disconnected(self, callback: Callable[[str, ], None]):
         """
         The callback when device is disconnected.
         """
@@ -52,7 +52,7 @@ class BLEDevice(object):
         The Radio Receive Signal Strength (RSSI) in dBm.
         """
 
-    async def start_notify(self, character: str, callback: Callable[[List[int], ], None]):
+    async def start_notify(self, character: str, callback: Callable[[bytearray, ], None]):
         """
         Activate notifications/indications on a characteristic.
 
@@ -80,7 +80,7 @@ class BLEDevice(object):
                 BleakGATTCharacteristic object representing it.
         """
 
-    async def write_gatt_char(self, character: str, data: List[int], response: Optional[bool] = False):
+    async def write_gatt_char(self, character: str, data: [bytes, bytearray, List[int]], response: Optional[bool] = False):
         """
         Perform a write operation on the specified GATT characteristic.
 
