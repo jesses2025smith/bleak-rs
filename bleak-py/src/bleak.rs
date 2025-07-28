@@ -273,10 +273,12 @@ impl BLEDevice {
 }
 
 #[pyfunction]
-#[pyo3(signature = (timeout = 15))]
-pub fn discover(py: Python, timeout: u64) -> PyResult<Bound<PyAny>> {
+#[pyo3(signature = (adapter_index = 0, timeout = 15))]
+pub fn discover(py: Python, adapter_index: usize, timeout: u64) -> PyResult<Bound<PyAny>> {
     let duration = Duration::from_secs(timeout);
-    let config = ScanConfig::default().stop_after_timeout(duration);
+    let config = ScanConfig::default()
+        .adapter_index(adapter_index)
+        .stop_after_timeout(duration);
     let mut scanner = Scanner::new();
 
     pyo3_async_runtimes::tokio::future_into_py(py, async move {
@@ -303,15 +305,16 @@ pub fn discover(py: Python, timeout: u64) -> PyResult<Bound<PyAny>> {
 }
 
 #[pyfunction]
-#[pyo3(signature = (address, timeout = 15))]
+#[pyo3(signature = (address, adapter_index = 0, timeout = 15))]
 pub fn find_device_by_address<'py>(
     py: Python<'py>,
     address: Bound<'py, PyString>,
+    adapter_index: usize,
     timeout: u64,
 ) -> PyResult<Bound<'py, PyAny>> {
     let address: String = address.extract()?;
     let filters = vec![Filter::Address(address)];
-    _find_device(py, filters, timeout)
+    _find_device(py, filters, adapter_index, timeout)
 }
 
 // #[pyfunction]
@@ -325,20 +328,22 @@ pub fn find_device_by_address<'py>(
 // }
 
 #[pyfunction]
-#[pyo3(signature = (name, timeout = 15))]
+#[pyo3(signature = (name, adapter_index = 0, timeout = 15))]
 pub fn find_device_by_name<'py>(
     py: Python<'py>,
     name: Bound<'py, PyString>,
+    adapter_index: usize,
     timeout: u64,
 ) -> PyResult<Bound<'py, PyAny>> {
     let name: String = name.extract()?;
     let filters = vec![Filter::Name(name)];
-    _find_device(py, filters, timeout)
+    _find_device(py, filters, adapter_index, timeout)
 }
 
-fn _find_device(py: Python, filters: Vec<Filter>, timeout: u64) -> PyResult<Bound<PyAny>> {
+fn _find_device(py: Python, filters: Vec<Filter>, adapter_index: usize, timeout: u64) -> PyResult<Bound<PyAny>> {
     let duration = Duration::from_secs(timeout);
     let config = ScanConfig::default()
+        .adapter_index(adapter_index)
         .with_filters(&filters)
         .stop_after_timeout(duration)
         .stop_after_first_match();

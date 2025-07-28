@@ -100,18 +100,18 @@ class BLEDevice(object):
         """
 
 
-async def discover(timeout: int = 15) -> List[BLEDevice]:
+async def discover(adapter_index: int = 0, timeout: int = 15) -> List[BLEDevice]:
     """
     Obtain ``BLEDevice``s for a BLE server in during time.
     """
 
 
-async def find_device_by_address(address: str, timeout: int = 15) -> BLEDevice:
+async def find_device_by_address(address: str, adapter_index: int = 0, timeout: int = 15) -> BLEDevice:
     """
     Obtain a ``BLEDevice`` for a BLE server that matches the address given.
     """
 
-async def find_device_by_name(name: str, timeout: int = 15) -> BLEDevice:
+async def find_device_by_name(name: str, adapter_index: int = 0, timeout: int = 15) -> BLEDevice:
     """
     Obtain a ``BLEDevice`` for a BLE server that matches the name given.
     """
