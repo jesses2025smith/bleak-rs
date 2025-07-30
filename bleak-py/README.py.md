@@ -27,7 +27,7 @@ async def main():
     device.on_disconnected(lambda x: print(f"device: {x} disconnected"))
     print(device.address())
     await device.connect()
-    await device.start_notify("00002bb0-0000-1000-8000-00805f9b34fb", lambda data: print(f"Received: {data}"))
+    await device.start_notify("00002bb0-0000-1000-8000-00805f9b34fb", lambda uuid, data: print(f"{uuid} received: {data}"))
     val = await device.read_gatt_char("00002a00-0000-1000-8000-00805f9b34fb")
     print(val)
     await device.write_gatt_char("00002bb0-0000-1000-8000-00805f9b34fb", [1, 2, 3, 4])
