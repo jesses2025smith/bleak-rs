@@ -161,8 +161,9 @@ impl BLEDevice {
                 if let Err(e) = pyo3_async_runtimes::tokio::future_into_py(py, async move {
                     while let Some(data) = stream.next().await {
                         let fut = Python::with_gil(|py| {
+                            let uuid = PyString::new(py, &uuid.to_string());
                             let py_data = PyByteArray::new(py, &data);
-                            let coroutine = callback.call1(py, (py_data,))?;
+                            let coroutine = callback.call1(py, (uuid, py_data,))?;
                             pyo3_async_runtimes::tokio::into_future(coroutine.extract(py)?)
                         })?;
 

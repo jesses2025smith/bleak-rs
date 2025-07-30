@@ -50,7 +50,7 @@ class BLEDevice(object):
         The Radio Receive Signal Strength (RSSI) in dBm.
         """
 
-    async def start_notify(self, character: str, callback: Callable[[bytearray, ], Coroutine[Any, Any, None]]):
+    async def start_notify(self, character: str, callback: Callable[[str, bytearray, ], Coroutine[Any, Any, None]]):
         """
         Activate notifications/indications on a characteristic.
 
@@ -76,7 +76,7 @@ class BLEDevice(object):
                 notifications/indications on a characteristic.
         """
 
-    async def write_gatt_char(self, character: str, data: [bytes, bytearray, List[int]], response: bool = False):
+    async def write_gatt_char(self, character: str, data: Union[bytes, bytearray, List[int]], response: bool = False):
         """
         Perform a write operation on the specified GATT characteristic.
 
