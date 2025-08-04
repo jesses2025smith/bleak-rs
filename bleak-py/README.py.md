@@ -41,3 +41,14 @@ if __name__ == "__main__":
     asyncio.run(_discover())
     asyncio.run(main())
 ```
+
+## build
+ * use uv
+ ```shell
+ cd bleak-py && uv build
+ ```
+
+ * use maturin
+ ```shell
+ cd bleak-py && maturin build
+ ```

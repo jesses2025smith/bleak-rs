@@ -1,6 +1,6 @@
 [project]
 name = "bleak-py"
-version = "0.1.8"
+version = "0.1.10"
 description = "A cross-platform BLE library based on btleplug."
 authors = [{ name = "Jesse Smith" }]
 license = { text = "MIT" }
