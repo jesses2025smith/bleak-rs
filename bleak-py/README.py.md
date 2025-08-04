@@ -19,8 +19,11 @@ The only updates that will be considered are those related to underlying API cha
 
 ```python
 import asyncio
-from bleak_py import find_device_by_name, BLEDevice
+from bleak_py import discover, find_device_by_name, BLEDevice
 
+async def _discover():
+    async for dev in await discover():
+        print(dev.address())
 
 async def main():
     device: BLEDevice = await find_device_by_name("M1(BLE)", timeout = 10)
@@ -35,5 +38,6 @@ async def main():
 
 
 if __name__ == "__main__":
+    asyncio.run(_discover())
     asyncio.run(main())
 ```

@@ -19,6 +19,7 @@ pyo3 = { workspace = true, features = ["uuid"] }
 pyo3-async-runtimes = { workspace = true, features = ["attributes", "tokio-runtime"] }
 #pyo3-stub-gen = { workspace = true }
 #rsutil = { workspace = true, features = ["log4rs"] }
+stream-cancel = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream = { workspace = true }
 uuid = { workspace = true, features = ["v4"] }

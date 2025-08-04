@@ -100,7 +100,15 @@ class BLEDevice(object):
         """
 
 
-async def discover(adapter_index: int = 0, timeout: int = 15) -> List[BLEDevice]:
+class DeviceDiscover:
+    async def __aiter__(self):
+        pass
+
+    async def __anext__(self) -> BLEDevice:
+        pass
+
+
+async def discover(adapter_index: int = 0, timeout: int = 15) -> DeviceDiscover:
     """
     Obtain ``BLEDevice``s for a BLE server in during time.
     """

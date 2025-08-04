@@ -1,14 +1,15 @@
 use bleasy::{Device, Filter, ScanConfig, Scanner};
 use pyo3::{
-    exceptions::{PyRuntimeError, PyValueError},
+    exceptions::{PyStopAsyncIteration, PyRuntimeError, PyValueError},
     prelude::PyAnyMethods,
     pyclass, pyfunction, pymethods,
     types::*,
-    Bound, PyObject, PyResult, Python,
+    Bound, PyObject, PyResult, PyRef, PyRefMut, Python,
 };
-use std::{sync::Arc, time::Duration};
+use std::{pin::Pin, sync::Arc, time::Duration};
+use stream_cancel::Valved;
 use tokio::sync::Mutex;
-use tokio_stream::StreamExt;
+use tokio_stream::{Stream, StreamExt};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Default)]
@@ -274,38 +275,6 @@ impl BLEDevice {
 }
 
 #[pyfunction]
-#[pyo3(signature = (adapter_index = 0, timeout = 15))]
-pub fn discover(py: Python, adapter_index: usize, timeout: u64) -> PyResult<Bound<PyAny>> {
-    let duration = Duration::from_secs(timeout);
-    let config = ScanConfig::default()
-        .adapter_index(adapter_index)
-        .stop_after_timeout(duration);
-    let mut scanner = Scanner::new();
-
-    pyo3_async_runtimes::tokio::future_into_py(py, async move {
-        scanner
-            .start(config)
-            .await
-            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
-
-        let mut results = Vec::new();
-        while let Some(device) = scanner
-            .device_stream()
-            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
-            .next()
-            .await
-        {
-            results.push(BLEDevice {
-                device,
-                context: Arc::new(Mutex::new(Default::default())),
-            });
-        }
-
-        Ok(results)
-    })
-}
-
-#[pyfunction]
 #[pyo3(signature = (address, adapter_index = 0, timeout = 15))]
 pub fn find_device_by_address<'py>(
     py: Python<'py>,
@@ -373,4 +342,61 @@ fn _find_device(py: Python, filters: Vec<Filter>, adapter_index: usize, timeout:
             bleasy::Error::DeviceNotFound.to_string(),
         ))
     })
+}
+
+#[pyfunction]
+#[pyo3(signature = (adapter_index = 0, timeout = 15))]
+pub fn discover<'py>(
+    py: Python<'py>,
+    adapter_index: usize,
+    timeout: u64,
+) -> PyResult<Bound<'py, PyAny>> {
+    pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        let duration = Duration::from_secs(timeout);
+        let config = ScanConfig::default()
+            .adapter_index(adapter_index)
+            .stop_after_timeout(duration);
+        let mut scanner = Scanner::new();
+
+        scanner.start(config)
+            .await
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+
+        let stream = scanner.device_stream()
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+
+        Ok(DeviceDiscover {
+            _scanner: scanner,
+            stream: Arc::new(Mutex::new(stream))
+        })
+    })
+}
+
+#[pyclass]
+pub struct DeviceDiscover {
+    _scanner: Scanner,
+    stream: Arc<Mutex<Valved<Pin<Box<dyn Stream<Item=Device>+Send>>>>>,
+}
+
+#[pymethods]
+impl DeviceDiscover {
+    pub fn __aiter__(this: PyRef<Self>) -> PyRef<Self> {
+        this
+    }
+
+    pub fn __anext__(this: PyRefMut<Self>) -> PyResult<Bound<PyAny>> {
+        let py = this.py();
+
+        let stream = this.stream.clone();
+        pyo3_async_runtimes::tokio::future_into_py(py, async move {
+            if let Some(device) = stream.lock().await.next().await {
+                Ok(BLEDevice {
+                    device,
+                    context: Arc::new(Mutex::new(Default::default())),
+                })
+            } else {
+                Err(PyStopAsyncIteration::new_err("End of stream"))
+            }
+        })
+    }
 }
