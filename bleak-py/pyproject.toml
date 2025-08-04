@@ -1,10 +1,11 @@
 [project]
 name = "bleak-py"
-version = "0.1.8"
+version = "0.1.12"
 description = "A cross-platform BLE library based on btleplug."
 authors = [{ name = "Jesse Smith" }]
 license = { text = "MIT" }
-readme = { files = ["README.py.md", "CHANGELOG.py.md"] }
+readme = "README.py.md"
+changelog = "CHANGELOG.py.md"
 requires-python = ">=3.9"
 dependencies = []
 
