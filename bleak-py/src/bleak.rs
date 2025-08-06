@@ -1,4 +1,4 @@
-use bleasy::{Device, Filter, ScanConfig, Scanner};
+use bleasy::{Characteristic, Device, Filter, ScanConfig, Scanner};
 use pyo3::{
     exceptions::{PyStopAsyncIteration, PyRuntimeError, PyValueError},
     prelude::PyAnyMethods,
@@ -14,22 +14,20 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Default)]
 struct Context {
-    notify_characters: Vec<Uuid>,
+    notify_characters: Vec<Characteristic>,
 }
 
 impl Context {
     #[inline(always)]
-    fn push(&mut self, uuid: Uuid) {
-        self.notify_characters.push(uuid);
+    fn push(&mut self, c: Characteristic) {
+        self.notify_characters.push(c);
     }
 
     /// unsubscribe all characters.
     #[inline(always)]
-    async fn unsubscribe(&mut self, device: &Device) {
-        for uuid in &self.notify_characters {
-            if let Ok(Some(char)) = device.characteristic(uuid.clone()).await {
-                let _ = char.unsubscribe().await;
-            }
+    async fn unsubscribe(&mut self) {
+        for c in &self.notify_characters {
+            let _ = c.unsubscribe().await;
         }
         
         self.notify_characters.clear();
@@ -108,7 +106,7 @@ impl BLEDevice {
         let context = self.context.clone();
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
-            context.lock().await.unsubscribe(&device).await;
+            context.lock().await.unsubscribe().await;
 
             device
                 .disconnect()
@@ -177,7 +175,7 @@ impl BLEDevice {
                 }
             });
 
-            context.lock().await.push(uuid);
+            context.lock().await.push(character);
 
             Ok(())
         })
