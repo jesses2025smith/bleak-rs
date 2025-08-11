@@ -10,10 +10,10 @@ const POWER_UUID: &str = "00001525-1212-efde-1523-785feabcd124";
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    rsutil::log::Log4rsConfig::default().initialize().unwrap();
     // Give BLE device address as a command line argument.
 
     let name = std::env::args().nth(1).expect("Expected device name");
-    rsutil::log::Log4rsConfig::default().initialize().unwrap();
 
     let config = ScanConfig::default()
         .with_filters(&vec![Filter::Name(name.clone())])

@@ -41,7 +41,7 @@ async fn main() -> anyhow::Result<()> {
 
     scanner.stop().await?;
 
-    join_handle.await.unwrap();
+    join_handle.await?;
 
     Ok(())
 }

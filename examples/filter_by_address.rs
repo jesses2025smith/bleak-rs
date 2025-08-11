@@ -6,11 +6,11 @@ use tokio_stream::StreamExt;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    rsutil::log::Log4rsConfig::default().initialize().unwrap();
+
     let address = std::env::args()
         .nth(1)
         .expect("Expected address in format XX:XX:XX:XX:XX:XX");
-
-    rsutil::log::Log4rsConfig::default().initialize().unwrap();
 
     log::info!("Scanning for device {}", address);
 
