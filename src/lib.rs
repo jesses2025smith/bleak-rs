@@ -54,7 +54,10 @@ pub use self::{
         Scanner,
     },
 };
-pub use btleplug::{api::BDAddr, Error, Result};
+pub use btleplug::{
+    api::{BDAddr, PeripheralProperties},
+    Error, Result,
+};
 
 #[cfg(test)]
 mod tests {
@@ -68,8 +71,7 @@ mod tests {
     async fn test_discover() -> anyhow::Result<()> {
         rsutil::log::Log4rsConfig::default().initialize().unwrap();
 
-        let cfg = ScanConfig::default()
-            .stop_after_timeout(Duration::from_secs(10));
+        let cfg = ScanConfig::default().stop_after_timeout(Duration::from_secs(10));
 
         let mut scanner = Scanner::new();
         scanner.start(cfg).await?;

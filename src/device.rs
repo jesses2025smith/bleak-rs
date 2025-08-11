@@ -1,7 +1,7 @@
 use btleplug::{
     api::{
         BDAddr, Central as _, CentralEvent, Characteristic as BleCharacteristic, Peripheral as _,
-        Service,
+        PeripheralProperties, Service,
     },
     platform::{Adapter, Peripheral, PeripheralId},
     Result,
@@ -60,26 +60,40 @@ impl Device {
         self.task = Arc::new(Some(handle));
     }
 
+    /// Get the peripheral properties from device.
+    pub async fn properties(&self) -> Option<PeripheralProperties> {
+        self.peripheral.properties().await.ok().flatten()
+    }
+
     /// Signal strength
     #[inline]
     pub async fn rssi(&self) -> Option<i16> {
-        self.peripheral
-            .properties()
-            .await
-            .ok()
-            .flatten()
-            .and_then(|props| props.rssi)
+        self.properties().await.map(|p| p.rssi).flatten()
     }
 
     /// Local name of the device
     #[inline]
     pub async fn local_name(&self) -> Option<String> {
-        self.peripheral
-            .properties()
+        self.properties()
             .await
-            .ok()
+            .map(|props| props.local_name)
             .flatten()
-            .and_then(|props| props.local_name)
+    }
+
+    /// Get the manufacturer data from device.
+    pub async fn manufacturer_data(&self, val: &u16) -> Option<Vec<u8>> {
+        self.properties()
+            .await
+            .map(|p| p.manufacturer_data.get(val).cloned())
+            .flatten()
+    }
+
+    /// Get the service data from device.
+    pub async fn service_data(&self, uuid: &Uuid) -> Option<Vec<u8>> {
+        self.properties()
+            .await
+            .map(|p| p.service_data.get(uuid).cloned())
+            .flatten()
     }
 
     /// Connect the device
