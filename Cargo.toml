@@ -20,7 +20,7 @@ uuid = "1.17"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/jesses2025smith/bleak-rs"
-version = "0.1.6"
+version = "0.1.8"
 
 [package]
 name = "bleak-rs"
