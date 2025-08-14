@@ -32,7 +32,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out bleak-py/dist --find-interpreter --manifest-path bleak-py/Cargo.toml
+          args: --release --out dist --find-interpreter --manifest-path Cargo.toml
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
           manylinux: auto
           before-script-linux: |
@@ -82,7 +82,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: wheels-linux-${{ matrix.platform.target }}
-          path: bleak-py/dist
+          path: dist
 
   windows:
     runs-on: ${{ matrix.platform.runner }}
@@ -101,13 +101,13 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out bleak-py/dist --find-interpreter --manifest-path bleak-py/Cargo.toml
+          args: --release --out dist --find-interpreter --manifest-path Cargo.toml
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
           name: wheels-windows-${{ matrix.platform.target }}
-          path: bleak-py/dist
+          path: dist
 
   macos:
     runs-on: ${{ matrix.platform.runner }}
@@ -127,13 +127,13 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out bleak-py/dist --find-interpreter --manifest-path bleak-py/Cargo.toml
+          args: --release --out dist --find-interpreter --manifest-path Cargo.toml
           sccache: ${{ !startsWith(github.ref, 'refs/tags/') }}
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
           name: wheels-macos-${{ matrix.platform.target }}
-          path: bleak-py/dist
+          path: dist
 
   sdist:
     runs-on: ubuntu-latest
@@ -143,12 +143,12 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: sdist
-          args: --out bleak-py/dist --manifest-path bleak-py/Cargo.toml
+          args: --out dist --manifest-path Cargo.toml
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:
           name: wheels-sdist
-          path: bleak-py/dist
+          path: dist
 
   release:
     name: Release
