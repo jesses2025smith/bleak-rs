@@ -204,7 +204,7 @@ impl ScannerWorker {
                         Filter::Name(v) => {
                             passed &= property.local_name.as_ref().is_some_and(|name| {
                                 if let Some(name_filter) = &self.config.name_filter {
-                                    name_filter(name)
+                                    name_filter(name, v)
                                 } else {
                                     name == v
                                 }
@@ -213,11 +213,31 @@ impl ScannerWorker {
                         Filter::Rssi(v) => {
                             passed &= property.rssi.is_some_and(|rssi| {
                                 if let Some(rssi_filter) = &self.config.rssi_filter {
-                                    rssi_filter(rssi)
+                                    rssi_filter(rssi, *v)
                                 } else {
                                     rssi >= *v
                                 }
                             });
+                        }
+                        Filter::Address(v) => {
+                            let addr = property.address.to_string();
+                            if let Some(address_filter) = &self.config.address_filter {
+                                passed &= address_filter(&addr, v);
+                            } else {
+                                passed &= addr == *v;
+                            }
+                        }
+                        Filter::Characteristic(v) => {
+                            if let Err(e) = self
+                                .apply_character_filter(&peripheral, v, &mut passed)
+                                .await
+                            {
+                                log::warn!(
+                                    "Error: {:?} when applying characteristic filter: {:?}",
+                                    e,
+                                    v
+                                );
+                            }
                         }
                         Filter::Service(v) => {
                             let services = &property.services;
@@ -226,19 +246,6 @@ impl ScannerWorker {
                             } else {
                                 passed &= property.services.contains(v);
                             }
-                        }
-                        Filter::Address(v) => {
-                            let addr = property.address.to_string();
-                            if let Some(address_filter) = &self.config.address_filter {
-                                passed &= address_filter(&addr);
-                            } else {
-                                passed &= addr == *v;
-                            }
-                        }
-                        Filter::Characteristic(v) => {
-                            let _ = self
-                                .apply_character_filter(&peripheral, v, &mut passed)
-                                .await;
                         }
                     }
                 }
@@ -275,30 +282,23 @@ impl ScannerWorker {
         passed: &mut bool,
     ) -> Result<(), Error> {
         if !peripheral.is_connected().await.unwrap_or(false) {
-            if self.connecting.lock()?.insert(peripheral.id()) {
+            let flag = { self.connecting.lock()?.insert(peripheral.id()) };
+            if flag {
                 log::debug!("Connecting to device {}", peripheral.address());
 
                 // Connect in another thread, so we can keep filtering other devices meanwhile.
                 // let peripheral_clone = peripheral.clone();
-                let connecting_map = self.connecting.clone();
                 if let Err(e) = peripheral.connect().await {
                     log::warn!("Could not connect to {}: {:?}", peripheral.address(), e);
-
-                    connecting_map.lock()?.remove(&peripheral.id());
-
-                    return Ok(());
                 };
+                let _ = { self.connecting.lock()?.remove(&peripheral.id()) };
+
+                return Ok(());
             }
         }
 
         let mut characteristics = Vec::new();
         characteristics.extend(peripheral.characteristics());
-
-        if self.config.force_disconnect {
-            if let Err(e) = peripheral.disconnect().await {
-                log::warn!("Error: {} when disconnect device", e);
-            }
-        }
 
         *passed &= if characteristics.is_empty() {
             let address = peripheral.address();
@@ -313,7 +313,7 @@ impl ScannerWorker {
                         .collect::<Vec<_>>();
 
                     if let Some(characteristics_filter) = &self.config.characteristics_filter {
-                        characteristics_filter(&characteristics)
+                        characteristics_filter(&characteristics, uuid)
                     } else {
                         characteristics.contains(uuid)
                     }
@@ -330,6 +330,12 @@ impl ScannerWorker {
         } else {
             true
         };
+
+        if self.config.force_disconnect {
+            if let Err(e) = peripheral.disconnect().await {
+                log::warn!("Error: {} when disconnect device", e);
+            }
+        }
 
         Ok(())
     }

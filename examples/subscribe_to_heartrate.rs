@@ -2,7 +2,7 @@
 //! connects to it and starts listening for heart rate values.
 
 use bleasy::{
-    common::characteristics::HEART_RATE_MEASUREMENT,
+    characteristics::HEART_RATE_MEASUREMENT,
     {Filter, ScanConfig, Scanner},
 };
 use tokio_stream::StreamExt;
@@ -13,7 +13,7 @@ async fn main() -> anyhow::Result<()> {
 
     let config = ScanConfig::default()
         .with_filters(&vec![Filter::Characteristic(HEART_RATE_MEASUREMENT)])
-        .filter_by_characteristics(|chars| chars.contains(&HEART_RATE_MEASUREMENT))
+        .filter_by_characteristics(|chars, hrm| chars.contains(hrm))
         .stop_after_first_match();
 
     let mut scanner = Scanner::new();

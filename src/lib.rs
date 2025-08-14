@@ -9,8 +9,7 @@
 //! a value from that characteristic:
 //!
 //! ```rust,no_run
-//! use bleasy::common::characteristics::BATTERY_LEVEL;
-//! use bleasy::{Error, ScanConfig, Scanner};
+//! use bleasy::{characteristics::BATTERY_LEVEL, Error, Filter, ScanConfig, Scanner};
 //! use tokio_stream::StreamExt;
 //!
 //! #[tokio::main]
@@ -19,7 +18,8 @@
 //!
 //!     // Create a filter for devices that have battery level characteristic
 //!     let config = ScanConfig::default()
-//!         .filter_by_characteristics(|uuids| uuids.contains(&BATTERY_LEVEL))
+//!         .with_filters(&[Filter::Characteristic(BATTERY_LEVEL)])
+//!         .filter_by_characteristics(|characters, bat_lvl| characters.contains(bat_lvl))
 //!         .stop_after_first_match();
 //!
 //!     // Start scanning for devices
@@ -41,13 +41,13 @@
 #![warn(clippy::all, future_incompatible, nonstandard_style, rust_2018_idioms)]
 
 mod characteristic;
+mod common;
 mod device;
 mod scanner;
 
-pub mod common;
-
 pub use self::{
     characteristic::Characteristic,
+    common::*,
     device::{Device, DeviceEvent},
     scanner::{
         config::{Filter, ScanConfig},

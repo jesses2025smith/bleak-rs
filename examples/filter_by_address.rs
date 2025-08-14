@@ -15,8 +15,8 @@ async fn main() -> anyhow::Result<()> {
     log::info!("Scanning for device {}", address);
 
     let config = ScanConfig::default()
-        .with_filters(&vec![Filter::Address(address.clone())])
-        .filter_by_address(move |addr| addr.eq(&address))
+        .with_filters(&vec![Filter::Address(address)])
+        .filter_by_address(|src, target| src == target)
         .stop_after_first_match();
 
     let mut scanner = Scanner::new();

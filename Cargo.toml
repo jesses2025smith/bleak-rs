@@ -1,37 +1,13 @@
-[workspace]
-members = [
-    ".",
-]
-
-[workspace.dependencies]
-anyhow = "1"
-#bleak-rs = { path = "." }
-btleplug = "0.11"
-log = "0.4"
-#pyo3 = "0.25"
-#pyo3-async-runtimes = "0.25"
-rsutil = "0.1"
-stream-cancel = "0.8"
-tokio = "1.46"
-tokio-stream = "0.1"
-uuid = "1.17"
-
-[workspace.package]
-edition = "2021"
-license = "MIT"
-repository = "https://github.com/jesses2025smith/bleak-rs"
-version = "0.1.8"
-
 [package]
 name = "bleak-rs"
-version.workspace = true
-edition.workspace = true
+version = "0.1.10"
+edition = "2021"
 authors = ["Urho Laukkarinen <urho.laukkarinen@gmail.com>", "Jesse Smith <jesses2025smith@gmail.com>"]
 
 description = "High-level BLE communication library"
-license.workspace = true
+license = "MIT"
 readme = "README.md"
-repository.workspace = true
+repository = "https://github.com/jesses2025smith/bleak-rs"
 homepage = "https://github.com/jesses2025smith/bleak-rs"
 keywords = ["bluetooth", "ble"]
 categories = ["asynchronous", "hardware-support"]
@@ -41,14 +17,15 @@ name = "bleasy"
 path = "src/lib.rs"
 
 [dependencies]
-btleplug = { workspace = true, features = ["serde"] }
-log = { workspace = true }
-stream-cancel = { workspace = true }
-tokio = { workspace = true, features = ["rt-multi-thread", "sync"] }
-tokio-stream = { workspace = true }
-uuid = { workspace = true }
+btleplug = { version = "0.11", features = ["serde"] }
+log = "0.4"
+rsutil = "0.1"
+stream-cancel = "0.8"
+tokio = { version = "1.47", features = ["rt-multi-thread", "sync"] }
+tokio-stream = "0.1"
+uuid = "1.17"
 
 [dev-dependencies]
-anyhow = { workspace = true }
-tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
-rsutil = { workspace = true, features = ["log4rs"] }
+anyhow = "1.0"
+tokio = { version = "1.47", features = ["macros", "rt", "rt-multi-thread"] }
+rsutil = { version = "0.1", features = ["log4rs"] }

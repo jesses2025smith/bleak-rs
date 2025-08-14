@@ -17,7 +17,7 @@ async fn main() -> anyhow::Result<()> {
 
     let config = ScanConfig::default()
         .with_filters(&vec![Filter::Name(name.clone())])
-        .filter_by_name(move |n| n.eq(&name))
+        .filter_by_name(|src, target| src == target)
         .stop_after_first_match();
 
     let mut scanner = Scanner::new();

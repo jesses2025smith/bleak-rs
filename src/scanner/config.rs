@@ -17,15 +17,15 @@ pub struct ScanConfig {
     /// Filters objects
     pub(crate) filters: Vec<Filter>,
     /// Filters the found devices based on device address.
-    pub(crate) address_filter: Option<Box<dyn Fn(&str) -> bool + Send + Sync>>,
+    pub(crate) address_filter: Option<Box<dyn Fn(&str, &str) -> bool + Send + Sync>>,
     /// Filters the found devices based on local name.
-    pub(crate) name_filter: Option<Box<dyn Fn(&str) -> bool + Send + Sync>>,
+    pub(crate) name_filter: Option<Box<dyn Fn(&str, &str) -> bool + Send + Sync>>,
     /// Filters the found devices based on rssi.
-    pub(crate) rssi_filter: Option<Box<dyn Fn(i16) -> bool + Send + Sync>>,
+    pub(crate) rssi_filter: Option<Box<dyn Fn(i16, i16) -> bool + Send + Sync>>,
     /// Filters the found devices based on service's uuid.
     pub(crate) service_filter: Option<Box<dyn Fn(&Vec<Uuid>, &Uuid) -> bool + Send + Sync>>,
     /// Filters the found devices based on characteristics. Requires a connection to the device.
-    pub(crate) characteristics_filter: Option<Box<dyn Fn(&Vec<Uuid>) -> bool + Send + Sync>>,
+    pub(crate) characteristics_filter: Option<Box<dyn Fn(&Vec<Uuid>, &Uuid) -> bool + Send + Sync>>,
     /// Maximum results before the scan is stopped.
     pub(crate) max_results: Option<usize>,
     /// The scan is stopped when timeout duration is reached.
@@ -52,7 +52,7 @@ impl ScanConfig {
     #[inline]
     pub fn filter_by_address(
         mut self,
-        func: impl Fn(&str) -> bool + Send + Sync + 'static,
+        func: impl Fn(&str, &str) -> bool + Send + Sync + 'static,
     ) -> Self {
         self.address_filter = Some(Box::new(func));
         self
@@ -60,13 +60,19 @@ impl ScanConfig {
 
     /// Filter scanned devices based on the device name
     #[inline]
-    pub fn filter_by_name(mut self, func: impl Fn(&str) -> bool + Send + Sync + 'static) -> Self {
+    pub fn filter_by_name(
+        mut self,
+        func: impl Fn(&str, &str) -> bool + Send + Sync + 'static,
+    ) -> Self {
         self.name_filter = Some(Box::new(func));
         self
     }
 
     #[inline]
-    pub fn filter_by_rssi(mut self, func: impl Fn(i16) -> bool + Send + Sync + 'static) -> Self {
+    pub fn filter_by_rssi(
+        mut self,
+        func: impl Fn(i16, i16) -> bool + Send + Sync + 'static,
+    ) -> Self {
         self.rssi_filter = Some(Box::new(func));
         self
     }
@@ -84,7 +90,7 @@ impl ScanConfig {
     #[inline]
     pub fn filter_by_characteristics(
         mut self,
-        func: impl Fn(&Vec<Uuid>) -> bool + Send + Sync + 'static,
+        func: impl Fn(&Vec<Uuid>, &Uuid) -> bool + Send + Sync + 'static,
     ) -> Self {
         self.characteristics_filter = Some(Box::new(func));
         self
@@ -120,7 +126,7 @@ impl ScanConfig {
     #[inline]
     pub fn require_name(self) -> Self {
         if self.name_filter.is_none() {
-            self.filter_by_name(|src| !src.is_empty())
+            self.filter_by_name(|src, _| !src.is_empty())
         } else {
             self
         }
