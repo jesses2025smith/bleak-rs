@@ -1,0 +1,29 @@
+[package]
+name = "bleak-py"
+version = "0.0.0"
+edition = "2021"
+authors = ["Jesse Smith <jesses2025smith@gmail.com>"]
+
+description = "High-level BLE communication library"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/jesses2025smith/bleak-rs/blob/pyo3"
+homepage = "https://github.com/jesses2025smith/bleak-rs"
+keywords = ["bluetooth", "ble"]
+categories = ["asynchronous", "hardware-support"]
+
+[lib]
+name = "bleak_py"
+crate-type = ["cdylib"]
+
+[dependencies]
+bleak-rs = "0.1.10"
+#log = "0.4"
+pyo3 = { version = "0.25", features = ["uuid"] }
+pyo3-async-runtimes = { version = "0.25", features = ["attributes", "tokio-runtime"] }
+#pyo3-stub-gen = "0.12"
+#rsutil = { version = "0.1", features = ["log4rs"] }
+stream-cancel = "0.8"
+tokio = { version = "1.47", features = ["rt-multi-thread"] }
+tokio-stream = "0.1"
+uuid = { version = "1.18", features = ["v4"] }

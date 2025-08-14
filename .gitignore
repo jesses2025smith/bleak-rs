@@ -1,0 +1,13 @@
+.vscode
+.idea
+
+/target
+Cargo.lock
+
+/dist
+/.venv
+/venv
+/.env
+/env
+/build
+__pycache__/

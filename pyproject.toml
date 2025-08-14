@@ -1,0 +1,21 @@
+[project]
+name = "bleak-py"
+version = "0.1.20"
+description = "A cross-platform BLE library based on btleplug."
+authors = [{ name = "Jesse Smith" }]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.urls]
+homepage = "https://github.com/jesses2025smith/bleak-rs/tree/py"
+repository = "https://github.com/jesses2025smith/bleak-rs"
+
+[build-system]
+requires = ["maturin>=1.5,<2.0"]
+build-backend = "maturin"
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+python = ["3.9", "3.10", "3.11", "3.12", "3.13"]
