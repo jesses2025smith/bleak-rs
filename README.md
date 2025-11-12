@@ -45,10 +45,10 @@ if __name__ == "__main__":
 ## build
 * use uv
  ```shell
- cd bleak-py && uv build
+ uv build
  ```
 
 * use maturin
  ```shell
- cd bleak-py && maturin build
+ maturin build
  ```
