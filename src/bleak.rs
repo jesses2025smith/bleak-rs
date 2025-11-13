@@ -4,7 +4,7 @@ use pyo3::{
     prelude::PyAnyMethods,
     pyclass, pyfunction, pymethods,
     types::*,
-    Bound, PyObject, PyRef, PyRefMut, PyResult, Python,
+    Bound, Py, PyRef, PyRefMut, PyResult, Python,
 };
 use std::{pin::Pin, sync::Arc, time::Duration};
 use stream_cancel::Valved;
@@ -71,13 +71,13 @@ impl BLEDevice {
     pub fn on_disconnected<'py>(
         &mut self,
         py: Python<'py>,
-        callback: PyObject, // Py<PyFunction>,
+        callback: Py<PyAny>, // Py<PyFunction>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let mut device = self.device.clone();
 
         pyo3_async_runtimes::tokio::future_into_py(py, async move {
             device.on_disconnected(move |v| {
-                Python::with_gil(|py| {
+                Python::attach(|py| {
                     if let Err(e) = callback.call1(py, (v.to_string(),)) {
                         e.display(py);
                     }
@@ -134,7 +134,7 @@ impl BLEDevice {
         &self,
         py: Python<'py>,
         character: Bound<'py, PyString>,
-        callback: PyObject, // Py<PyFunction>,
+        callback: Py<PyAny>, // Py<PyFunction>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let character = character.extract::<&str>()?;
         let uuid = Uuid::try_from(character).map_err(|e| PyValueError::new_err(e.to_string()))?;
@@ -156,10 +156,10 @@ impl BLEDevice {
                 .await
                 .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
 
-            Python::with_gil(|py| {
+            Python::attach(|py| {
                 if let Err(e) = pyo3_async_runtimes::tokio::future_into_py(py, async move {
                     while let Some(data) = stream.next().await {
-                        let fut = Python::with_gil(|py| {
+                        let fut = Python::attach(|py| {
                             let uuid = PyString::new(py, &uuid.to_string());
                             let py_data = PyByteArray::new(py, &data);
                             let coroutine = callback.call1(py, (uuid, py_data))?;
